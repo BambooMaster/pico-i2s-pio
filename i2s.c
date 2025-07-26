@@ -305,7 +305,7 @@ void i2s_mclk_set_config(PIO pio, uint sm, int dma_ch, bool use_core1, CLOCK_MOD
         vreg_set_voltage(VREG_VOLTAGE_1_20);
     }
     if (i2s_clock_mode != CLOCK_MODE_DEFAULT){
-        clock_configure_undivided(clk_peri, 0, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
+        clock_configure_undivided(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
     }
 }
 
