@@ -160,7 +160,7 @@ static void __isr __time_critical_func(i2s_handler)(){
 	static int32_t mute_buff[96 * 2] = {0};
 	static uint32_t mute_len = sizeof(mute_buff) / sizeof(int32_t);
 	
-	if (i2s_buf_length == 0){
+	if (i2s_buf_length == 0 && mute == false){
         mute = true;
         set_playback_state(false);
     }
@@ -202,7 +202,7 @@ static void defalut_core1_main(void){
     while (1){
         buf_length = i2s_get_buf_length();
 
-        if (buf_length == 0){
+        if (buf_length == 0 && mute == false){
             mute = true;
             set_playback_state(false);
         }
