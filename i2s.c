@@ -80,6 +80,7 @@ static inline void set_playback_state(bool state){
     playback_handler(state);
 }
 
+#if 0
 /**
  * @brief システムクロックを271MHzに設定する
  * 
@@ -126,6 +127,55 @@ static void set_sys_clock_147500khz(void){
     clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
     pll_init(pll_sys, 2, 1770 * MHZ, 6, 1);
     clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 295 * MHZ, 2);
+}
+#endif
+
+/**
+ * @brief システムクロックを180.75MHzに設定する
+ * 
+ * @note 44.1kHz系 180.75 / 8 = 22.59375MHz
+ */
+static void set_sys_clock_180750khz(void){
+    while (running_on_fpga()) tight_loop_contents();
+    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
+    pll_init(pll_sys, 2, 1446 * MHZ, 4, 2);
+    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 180750 * KHZ);
+}
+
+/**
+ * @brief システムクロックを196.5MHzに設定する
+ * 
+ * @note 48.0kHz系 196.5 / 8 = 24.5625MHz
+ */
+static void set_sys_clock_196500khz(void){
+    while (running_on_fpga()) tight_loop_contents();
+    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
+    pll_init(pll_sys, 1, 1572 * MHZ, 4, 2);
+    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 196500 * KHZ);
+}
+
+/**
+ * @brief システムクロックを90.375MHzに設定する
+ * 
+ * @note 44.1kHz系 90.375 / 4 = 22.59375MHz
+ */
+static void set_sys_clock_90375khz(void){
+    while (running_on_fpga()) tight_loop_contents();
+    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
+    pll_init(pll_sys, 2, 1446 * MHZ, 4, 2);
+    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 180750 * KHZ, 2);
+}
+
+/**
+ * @brief システムクロックを98.25MHzに設定する
+ * 
+ * @note 48.0kHz系 98.25 / 4 = 24.5625MHz
+ */
+static void set_sys_clock_982500khz(void){
+    while (running_on_fpga()) tight_loop_contents();
+    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
+    pll_init(pll_sys, 1, 1572 * MHZ, 4, 2);
+    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 196500 * KHZ, 2);
 }
 
 /**
@@ -302,7 +352,7 @@ void i2s_mclk_set_config(PIO pio, uint sm, int dma_ch, bool use_core1, CLOCK_MOD
 
     //あらかじめclk_periをclk_sysから分離する
     if (i2s_clock_mode == CLOCK_MODE_LOW_JITTER_OC){
-        vreg_set_voltage(VREG_VOLTAGE_1_20);
+        vreg_set_voltage(VREG_VOLTAGE_1_15);
     }
     if (i2s_clock_mode != CLOCK_MODE_DEFAULT){
         clock_configure_undivided(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
@@ -411,10 +461,10 @@ void i2s_mclk_init(uint32_t audio_clock){
         if (audio_clock % 48000 == 0){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_147500khz();
+                    set_sys_clock_982500khz();
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    set_sys_clock_295000khz();
+                    set_sys_clock_196500khz();
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     set_sys_clock_gpin1();
@@ -425,10 +475,10 @@ void i2s_mclk_init(uint32_t audio_clock){
         else {
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_135500khz();
+                    set_sys_clock_90375khz();
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    set_sys_clock_271000khz();
+                    set_sys_clock_180750khz();
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     set_sys_clock_gpin0();
@@ -441,10 +491,10 @@ void i2s_mclk_init(uint32_t audio_clock){
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    sm_config_set_clkdiv_int_frac8(&sm_config_mclk, 3, 0);
+                    sm_config_set_clkdiv_int_frac8(&sm_config_mclk, 2, 0);
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    sm_config_set_clkdiv_int_frac8(&sm_config_mclk, 6, 0);
+                    sm_config_set_clkdiv_int_frac8(&sm_config_mclk, 4, 0);
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     sm_config_set_clkdiv_int_frac8(&sm_config_mclk, 1, 0);
@@ -457,10 +507,10 @@ void i2s_mclk_init(uint32_t audio_clock){
         if (clk_48khz == true){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    dev = 6 * 192000 / audio_clock;
+                    dev = 4 * 192000 / audio_clock;
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    dev = 12 * 192000 / audio_clock;
+                    dev = 8 * 192000 / audio_clock;
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     dev = 2 * 192000 / audio_clock;
@@ -470,10 +520,10 @@ void i2s_mclk_init(uint32_t audio_clock){
         else {
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    dev = 6 * 176400 / audio_clock;
+                    dev = 4 * 176400 / audio_clock;
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    dev = 12 * 176400 / audio_clock;
+                    dev = 8 * 176400 / audio_clock;
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     dev = 2 * 176400 / audio_clock;
@@ -565,10 +615,10 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         if (audio_clock % 48000 == 0 && clk_48khz == false){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_147500khz();
+                    set_sys_clock_982500khz();
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    set_sys_clock_295000khz();
+                    set_sys_clock_196500khz();
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     set_sys_clock_gpin1();
@@ -579,10 +629,10 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         else if (audio_clock % 48000 != 0 && clk_48khz == true){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_135500khz();
+                    set_sys_clock_90375khz();
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    set_sys_clock_271000khz();
+                    set_sys_clock_180750khz();
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     set_sys_clock_gpin0();
@@ -596,10 +646,10 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         if (clk_48khz == true){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    dev = 6 * 192000 / audio_clock;
+                    dev = 4 * 192000 / audio_clock;
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    dev = 12 * 192000 / audio_clock;
+                    dev = 8 * 192000 / audio_clock;
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     dev = 2 * 192000 / audio_clock;
@@ -609,10 +659,10 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         else {
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    dev = 6 * 176400 / audio_clock;
+                    dev = 4 * 176400 / audio_clock;
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
-                    dev = 12 * 176400 / audio_clock;
+                    dev = 8 * 176400 / audio_clock;
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     dev = 2 * 176400 / audio_clock;
