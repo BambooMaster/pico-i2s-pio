@@ -441,7 +441,7 @@ void i2s_mclk_init(uint32_t audio_clock){
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    sm_config_set_clkdiv_int_frac8(&sm_config_mclk, 2, 0);
+                    sm_config_set_clkdiv_int_frac8(&sm_config_mclk, 1, 0);
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     sm_config_set_clkdiv_int_frac8(&sm_config_mclk, 4, 0);
@@ -457,7 +457,7 @@ void i2s_mclk_init(uint32_t audio_clock){
         if (clk_48khz == true){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    dev = 4 * 192000 / audio_clock;
+                    dev = 2 * 192000 / audio_clock;
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     dev = 8 * 192000 / audio_clock;
@@ -470,7 +470,7 @@ void i2s_mclk_init(uint32_t audio_clock){
         else {
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    dev = 4 * 176400 / audio_clock;
+                    dev = 2 * 176400 / audio_clock;
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     dev = 8 * 176400 / audio_clock;
@@ -596,7 +596,7 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         if (clk_48khz == true){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    dev = 4 * 192000 / audio_clock;
+                    dev = 2 * 192000 / audio_clock;
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     dev = 8 * 192000 / audio_clock;
@@ -609,7 +609,7 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         else {
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    dev = 4 * 176400 / audio_clock;
+                    dev = 2 * 176400 / audio_clock;
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     dev = 8 * 176400 / audio_clock;
