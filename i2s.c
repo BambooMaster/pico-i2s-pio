@@ -80,56 +80,6 @@ static inline void set_playback_state(bool state){
     playback_handler(state);
 }
 
-#if 0
-/**
- * @brief システムクロックを271MHzに設定する
- * 
- * @note 44.1kHz系 271 / 12 = 22.583MHz
- */
-static void set_sys_clock_271000khz(void){
-    while (running_on_fpga()) tight_loop_contents();
-    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
-    pll_init(pll_sys, 2, 1626 * MHZ, 6, 1);
-    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 271 * MHZ);
-}
-
-/**
- * @brief システムクロックを135.5MHzに設定する
- * 
- * @note 44.1kHz系 135.5 / 6 = 22.583MHz
- */
-static void set_sys_clock_135500khz(void){
-    while (running_on_fpga()) tight_loop_contents();
-    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
-    pll_init(pll_sys, 2, 1626 * MHZ, 6, 1);
-    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 271 * MHZ, 2);
-}
-
-/**
- * @brief システムクロックを295MHzに設定する
- * 
- * @note 48kHz系 295 / 12 = 24.583MHz
- */
-static void set_sys_clock_295000khz(void){
-    while (running_on_fpga()) tight_loop_contents();
-    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
-    pll_init(pll_sys, 2, 1770 * MHZ, 6, 1);
-    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 295 * MHZ);
-}
-
-/**
- * @brief システムクロックを147.5MHzに設定する
- * 
- * @note 48kHz系 147.5 / 6 = 24.583MHz
- */
-static void set_sys_clock_147500khz(void){
-    while (running_on_fpga()) tight_loop_contents();
-    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
-    pll_init(pll_sys, 2, 1770 * MHZ, 6, 1);
-    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 295 * MHZ, 2);
-}
-#endif
-
 /**
  * @brief システムクロックを180.75MHzに設定する
  * 
@@ -155,27 +105,27 @@ static void set_sys_clock_196500khz(void){
 }
 
 /**
- * @brief システムクロックを90.375MHzに設定する
+ * @brief システムクロックを45.14285714285714MHzに設定する
  * 
- * @note 44.1kHz系 90.375 / 4 = 22.59375MHz
+ * @note 44.1kHz系 316 / 14 = 22.57142857142857MHz
  */
-static void set_sys_clock_90375khz(void){
+static void set_sys_clock_45142857hz(void){
     while (running_on_fpga()) tight_loop_contents();
     clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
-    pll_init(pll_sys, 2, 1446 * MHZ, 4, 2);
-    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 180750 * KHZ, 2);
+    pll_init(pll_sys, 1, 948 * MHZ, 3, 1);
+    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 316 * MHZ, 7);
 }
 
 /**
- * @brief システムクロックを98.25MHzに設定する
+ * @brief システムクロックを49.14285714285714MHzに設定する
  * 
- * @note 48.0kHz系 98.25 / 4 = 24.5625MHz
+ * @note 48.0kHz系 344 / 14 = 24.57142857142857MHz
  */
-static void set_sys_clock_982500khz(void){
+static void set_sys_clock_49142857hz(void){
     while (running_on_fpga()) tight_loop_contents();
     clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
-    pll_init(pll_sys, 1, 1572 * MHZ, 4, 2);
-    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 196500 * KHZ, 2);
+    pll_init(pll_sys, 1, 1032 * MHZ, 3, 1);
+    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 344 * MHZ, 7);
 }
 
 /**
@@ -461,7 +411,7 @@ void i2s_mclk_init(uint32_t audio_clock){
         if (audio_clock % 48000 == 0){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_982500khz();
+                    set_sys_clock_49142857hz();
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     set_sys_clock_196500khz();
@@ -475,7 +425,7 @@ void i2s_mclk_init(uint32_t audio_clock){
         else {
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_90375khz();
+                    set_sys_clock_45142857hz();
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     set_sys_clock_180750khz();
@@ -615,7 +565,7 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         if (audio_clock % 48000 == 0 && clk_48khz == false){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_982500khz();
+                    set_sys_clock_49142857hz();
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     set_sys_clock_196500khz();
@@ -629,7 +579,7 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         else if (audio_clock % 48000 != 0 && clk_48khz == true){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_90375khz();
+                    set_sys_clock_45142857hz();
                     break;
                 case CLOCK_MODE_LOW_JITTER_OC:
                     set_sys_clock_180750khz();
