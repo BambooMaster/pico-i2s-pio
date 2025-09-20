@@ -143,13 +143,12 @@ void set_core1_main_function(Core1MainFunction func);
  * 
  * @param x 入力
  */
-__force_inline uint64_t part1by1_32(uint32_t x){
-    uint64_t res = x;
-    res = (res | (res << 16)) & 0x0000FFFF0000FFFFULL;
-    res = (res | (res << 8))  & 0x00FF00FF00FF00FFULL;
-    res = (res | (res << 4))  & 0x0F0F0F0F0F0F0F0FULL;
-    res = (res | (res << 2))  & 0x3333333333333333ULL;
-    res = (res | (res << 1))  & 0x5555555555555555ULL;
+__force_inline uint32_t part1by1_16(uint16_t x){
+    uint32_t res = x;
+    res = (res | (res << 8))  & 0x00FF00FF;
+    res = (res | (res << 4))  & 0x0F0F0F0F;
+    res = (res | (res << 2))  & 0x33333333;
+    res = (res | (res << 1))  & 0x55555555;
     return res;
 }
 

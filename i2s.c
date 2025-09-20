@@ -225,30 +225,28 @@ static void defalut_core1_main(void){
             //並び替え
             int l = 0;
             for (int i = 0, j = 0; i < sample; i += 2) {
-                uint64_t left  = part1by1_32(buff[i]);
-                uint64_t right = part1by1_32(buff[i + 1]);
-                
-                uint64_t merged = (left << 1) | right;
-        
-                dma_buff[dma_use][i] = (uint32_t)(merged >> 32);     // 上位32bit
-                dma_buff[dma_use][i + 1] = (uint32_t)(merged & 0xFFFFFFFF); // 下位32bit
+                uint32_t left_upper = part1by1_16(buff[i] & 0xFFFF);
+                uint32_t left_lower = part1by1_16(buff[i] >> 16);
+                uint32_t right_upper = part1by1_16(buff[i + 1] & 0xFFFF);
+                uint32_t right_lower = part1by1_16(buff[i + 1] >> 16);
+
+                dma_buff[dma_use][i] = (left_upper << 1) | right_upper;
+                dma_buff[dma_use][i + 1] = (left_lower << 1) | right_lower;
             }
         }
         else if (i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_I2S_DUAL){
             //並び替え
             for (int i = 0, j = 0; i < sample; i += 2) {
-                //
-                uint64_t tmp1, tmp2, merged;
-                int32_t d_r, d_l;
-                tmp1 = part1by1_32(buff[i]);
-                tmp2 = part1by1_32(buff[i + 1]);
-                
-                merged = (tmp1 << 1) | tmp2;
-        
-                dma_buff[dma_use][j++] = (uint32_t)(merged >> 32);     // 上位32bit
-                dma_buff[dma_use][j++] = (uint32_t)(merged & 0xFFFFFFFF); // 下位32bit
+                uint32_t left_upper = part1by1_16(buff[i] & 0xFFFF);
+                uint32_t left_lower = part1by1_16(buff[i] >> 16);
+                uint32_t right_upper = part1by1_16(buff[i + 1] & 0xFFFF);
+                uint32_t right_lower = part1by1_16(buff[i + 1] >> 16);
+
+                dma_buff[dma_use][j++] = (left_upper << 1) | right_upper;
+                dma_buff[dma_use][j++] = (left_lower << 1) | right_lower;
 
                 //反転
+                int32_t d_r, d_l;
                 if (buff[i] == INT32_MIN){
                     d_l = INT32_MAX;
                 }
@@ -261,13 +259,14 @@ static void defalut_core1_main(void){
                 else{
                     d_r = -buff[i + 1];
                 }
-                tmp1 = part1by1_32(d_l);
-                tmp2 = part1by1_32(d_r);
-                
-                merged = (tmp1 << 1) | tmp2;
-        
-                dma_buff[dma_use][j++] = (uint32_t)(merged >> 32);     // 上位32bit
-                dma_buff[dma_use][j++] = (uint32_t)(merged & 0xFFFFFFFF); // 下位32bit
+
+                left_upper = part1by1_16(d_l & 0xFFFF);
+                left_lower = part1by1_16(d_l >> 16);
+                right_upper = part1by1_16(d_r & 0xFFFF);
+                right_lower = part1by1_16(d_r >> 16);
+
+                dma_buff[dma_use][j++] = (left_upper << 1) | right_upper;
+                dma_buff[dma_use][j++] = (left_lower << 1) | right_lower;
             }
             sample *= 2;
         }
@@ -674,30 +673,28 @@ bool i2s_enqueue(uint8_t* in, int sample, uint8_t resolution){
         if (i2s_mode == MODE_EXDF && i2s_use_core1 == false){
             //並び替え
             for (int i = 0, j = 0; i < sample / 2; i++) {
-                uint64_t left  = part1by1_32(lch_buf[i]);
-                uint64_t right = part1by1_32(rch_buf[i]);
-                
-                uint64_t merged = (left << 1) | right;
-        
-                i2s_buf[enqueue_pos][j++] = (uint32_t)(merged >> 32);     // 上位32bit
-                i2s_buf[enqueue_pos][j++] = (uint32_t)(merged & 0xFFFFFFFF); // 下位32bit
+                uint32_t left_upper = part1by1_16(lch_buf[i] & 0xFFFF);
+                uint32_t left_lower = part1by1_16(lch_buf[i] >> 16);
+                uint32_t right_upper = part1by1_16(rch_buf[i] & 0xFFFF);
+                uint32_t right_lower = part1by1_16(rch_buf[i] >> 16);
+
+                i2s_buf[enqueue_pos][j++] = (left_upper << 1) | right_upper;
+                i2s_buf[enqueue_pos][j++] = (left_lower << 1) | right_lower;
             }
         }
         else if ((i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_I2S_DUAL) && i2s_use_core1 == false){
             //並び替え
             for (int i = 0, j = 0; i < sample / 2; i++) {
-                //
-                uint64_t tmp1, tmp2, merged;
-                int32_t d_r, d_l;
-                tmp1 = part1by1_32(lch_buf[i]);
-                tmp2 = part1by1_32(rch_buf[i]);
-                
-                merged = (tmp1 << 1) | tmp2;
-        
-                i2s_buf[enqueue_pos][j++] = (uint32_t)(merged >> 32);     // 上位32bit
-                i2s_buf[enqueue_pos][j++] = (uint32_t)(merged & 0xFFFFFFFF); // 下位32bit
+                uint32_t left_upper = part1by1_16(lch_buf[i] & 0xFFFF);
+                uint32_t left_lower = part1by1_16(lch_buf[i] >> 16);
+                uint32_t right_upper = part1by1_16(rch_buf[i] & 0xFFFF);
+                uint32_t right_lower = part1by1_16(rch_buf[i] >> 16);
+
+                i2s_buf[enqueue_pos][j++] = (left_upper << 1) | right_upper;
+                i2s_buf[enqueue_pos][j++] = (left_lower << 1) | right_lower;
 
                 //反転
+                int32_t d_r, d_l;
                 if (lch_buf[i] == INT32_MIN){
                     d_l = INT32_MAX;
                 }
@@ -710,13 +707,14 @@ bool i2s_enqueue(uint8_t* in, int sample, uint8_t resolution){
                 else{
                     d_r = -rch_buf[i];
                 }
-                tmp1 = part1by1_32(d_l);
-                tmp2 = part1by1_32(d_r);
-                
-                merged = (tmp1 << 1) | tmp2;
-        
-                i2s_buf[enqueue_pos][j++] = (uint32_t)(merged >> 32);     // 上位32bit
-                i2s_buf[enqueue_pos][j++] = (uint32_t)(merged & 0xFFFFFFFF); // 下位32bit
+
+                left_upper = part1by1_16(d_l & 0xFFFF);
+                left_lower = part1by1_16(d_l >> 16);
+                right_upper = part1by1_16(d_r & 0xFFFF);
+                right_lower = part1by1_16(d_r >> 16);
+
+                i2s_buf[enqueue_pos][j++] = (left_upper << 1) | right_upper;
+                i2s_buf[enqueue_pos][j++] = (left_lower << 1) | right_lower;
             }
             sample *= 2;
         }
