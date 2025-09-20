@@ -196,3 +196,63 @@ out pins, 2     side 0b00 [1]
 jmp x--, L4     side 0b10 [1]
 
 out pins, 2     side 0b00 [1]
+
+
+;i2s_slave
+.program i2s_slave
+;in pin 0   BCLK
+;in pin 1   LRCLK
+;r LSB
+    wait 0 pin 1
+    out pins 1
+    wait 1 pin 0
+    pull block
+
+;l MSB
+    wait 1 pin 0
+    out pins 1
+    wait 0 pin 0
+    set y 29
+
+;l nbit
+L_LOOP:
+    wait 1 pin 0
+    out pins 1
+    wait 0 pin 0
+    jmp y-- L_LOOP
+
+;l LSB
+    wait 1 pin 1
+    out pins 1
+    wait 0 pin 0
+    pull block
+
+;r MSB
+    wait 1 pin 0
+    out pins 1
+    wait 0 pin 0
+    set y 29
+
+;r nbit
+R_LOOP:
+    wait 1 pin 0
+    out pins 1
+    wait 0 pin 0
+    jmp y-- R_LOOP
+
+;i2s_slave_init
+;pio_gpio_init(pio, 16);
+;pio_gpio_init(pio, 17);
+;pio_gpio_init(pio, 18);
+
+;pio_sm_set_consecutive_pindirs(pio, sm, 16, 1, true);
+;pio_sm_set_consecutive_pindirs(pio, sm, 17, 2, false);
+ 
+;pio_sm_config c = blink_program_get_default_config(offset);
+;sm_config_set_out_pins(&c, 16, 1);
+;sm_config_set_in_pin_base(&c, 17);
+;sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+;sm_config_set_clkdiv_int_frac(&c, 1, 0);
+;pio_sm_init(pio, sm, offset, &c);
+
+;pio_sm_set_enabled(pio, sm, true);
