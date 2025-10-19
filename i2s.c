@@ -473,6 +473,32 @@ void pt8211_dual_init(void){
     pio_sm_set_enabled(pio, sm, true);
 }
 
+void i2s_slave_init(void){
+    pio_sm_config sm_config;
+    PIO pio = i2s_pio;
+    uint sm = i2s_sm;
+    uint data_pin = i2s_dout_pin;
+    uint clock_pin_base = i2s_clk_pin_base;
+    uint offset;
+    uint pin_mask;
+    
+    //i2s slave pin init
+    pio_gpio_init(pio, data_pin);
+    pio_gpio_init(pio, clock_pin_base);
+    pio_gpio_init(pio, clock_pin_base + 1);
+
+    //i2s svalse data init
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, clock_pin_base, 2, false);
+    
+    sm_config = i2s_slave_program_get_default_config(offset);
+    sm_config_set_out_pins(&sm_config, data_pin, 1);
+    sm_config_set_in_pin_base(&sm_config, clock_pin_base);
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    pio_sm_init(pio, sm, offset, &sm_config);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
 void i2s_mclk_init(uint32_t audio_clock){
     pio_sm_config sm_config, sm_config_mclk;
     PIO pio = i2s_pio;
@@ -499,6 +525,9 @@ void i2s_mclk_init(uint32_t audio_clock){
             break;
         case MODE_PT8211_DUAL:
             pt8211_dual_init();
+            break;
+        case MODE_I2S_SLAVE:
+            i2s_slave_init();
             break;
     }
     i2s_mclk_change_clock(audio_clock);
@@ -542,7 +571,24 @@ void i2s_mclk_init(uint32_t audio_clock){
 
 void i2s_mclk_change_clock(uint32_t audio_clock){
     //周波数変更
-    if (i2s_clock_mode == CLOCK_MODE_DEFAULT){
+    if (i2s_mode == MODE_I2S_SLAVE){
+        int div;
+        if (audio_clock % 48000 == 0){
+            div = 384000 / audio_clock;
+            clock_configure_gpin(clk_gpout0, 22, 24576 * KHZ, 24576 * KHZ);
+            clock_gpio_init_int_frac(23, CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_VALUE_CLKSRC_GPIN1, 1, 0);
+            clock_gpio_init_int_frac(24, CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_VALUE_CLKSRC_GPIN1, div, 0);
+            clock_gpio_init_int_frac(25, CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_VALUE_CLKSRC_GPIN1, div * 64, 0);
+        }
+        else{
+            div = 352800 / audio_clock;
+            clock_configure_gpin(clk_gpout0, 20, 22579200, 22579200);
+            clock_gpio_init_int_frac(23, CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_VALUE_CLKSRC_GPIN0, 1, 0);
+            clock_gpio_init_int_frac(24, CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_VALUE_CLKSRC_GPIN0, div, 0);
+            clock_gpio_init_int_frac(25, CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_VALUE_CLKSRC_GPIN0, div * 64, 0);
+        }
+    }
+    else if (i2s_clock_mode == CLOCK_MODE_DEFAULT){
         float div;
         div = (float)clock_get_hz(clk_sys) / (float)(audio_clock * 128);
         pio_sm_set_clkdiv(i2s_pio, i2s_sm, div);
