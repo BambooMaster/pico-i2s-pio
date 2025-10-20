@@ -491,9 +491,11 @@ void i2s_slave_init(void){
     pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);
     pio_sm_set_consecutive_pindirs(pio, sm, clock_pin_base, 2, false);
     
+    offset = pio_add_program(pio, &i2s_slave_program);
     sm_config = i2s_slave_program_get_default_config(offset);
     sm_config_set_out_pins(&sm_config, data_pin, 1);
     sm_config_set_in_pin_base(&sm_config, clock_pin_base);
+    sm_config_set_out_shift(&sm_config, false, false, 32);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
     pio_sm_init(pio, sm, offset, &sm_config);
     pio_sm_set_enabled(pio, sm, true);
