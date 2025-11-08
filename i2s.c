@@ -104,30 +104,6 @@ static void set_sys_clock_196500khz(void){
 }
 
 /**
- * @brief システムクロックを45.14285714285714MHzに設定する
- * 
- * @note 44.1kHz系 316 / 14 = 22.57142857142857MHz
- */
-static void set_sys_clock_45142857hz(void){
-    while (running_on_fpga()) tight_loop_contents();
-    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
-    pll_init(pll_sys, 1, 948 * MHZ, 3, 1);
-    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 316 * MHZ, 7);
-}
-
-/**
- * @brief システムクロックを49.14285714285714MHzに設定する
- * 
- * @note 48.0kHz系 344 / 14 = 24.57142857142857MHz
- */
-static void set_sys_clock_49142857hz(void){
-    while (running_on_fpga()) tight_loop_contents();
-    clock_configure_undivided(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
-    pll_init(pll_sys, 1, 1032 * MHZ, 3, 1);
-    clock_configure_int_divider(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLKSRC_CLK_SYS_AUX, CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS, 344 * MHZ, 7);
-}
-
-/**
  * @brief システムクロックをgpin0に設定する
  * 
  * @note gpin0 = 45.1584MHz
@@ -299,7 +275,7 @@ void i2s_mclk_set_config(PIO pio, uint sm, int dma_ch, bool use_core1, CLOCK_MOD
     i2s_mode = mode;
 
     //あらかじめclk_periをclk_sysから分離する
-    if (i2s_clock_mode == CLOCK_MODE_LOW_JITTER_OC){
+    if (i2s_clock_mode == CLOCK_MODE_LOW_JITTER){
         vreg_set_voltage(VREG_VOLTAGE_1_15);
     }
     if (i2s_clock_mode != CLOCK_MODE_DEFAULT){
@@ -608,9 +584,6 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_sm + 1, 1, 0);
-                    break;
-                case CLOCK_MODE_LOW_JITTER_OC:
                     pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_sm + 1, 4, 0);
                     break;
                 case CLOCK_MODE_EXTERNAL:
@@ -624,10 +597,6 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         if (audio_clock % 48000 == 0){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_49142857hz();
-                    dev = 2 * 192000 / audio_clock;
-                    break;
-                case CLOCK_MODE_LOW_JITTER_OC:
                     set_sys_clock_196500khz();
                     dev = 8 * 192000 / audio_clock;
                     break;
@@ -640,10 +609,6 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         else {
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    set_sys_clock_45142857hz();
-                    dev = 2 * 176400 / audio_clock;
-                    break;
-                case CLOCK_MODE_LOW_JITTER_OC:
                     set_sys_clock_180750khz();
                     dev = 8 * 176400 / audio_clock;
                     break;
