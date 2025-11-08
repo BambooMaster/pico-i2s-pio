@@ -577,21 +577,13 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         int div;
         if (audio_clock % 48000 == 0){
             div = 384000 / audio_clock;
-            //クロック変更
+            //ここで外部のクロック変更
             //picoのGPIOクロック出力だとクロック間の同期ができない
-            //clock_configure_gpin(clk_gpout0, 22, 24576 * KHZ, 24576 * KHZ);
-            //clock_gpio_init_int_frac(23, CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_VALUE_CLKSRC_GPIN1, 1, 0);
-            //clock_gpio_init_int_frac(24, CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_VALUE_CLKSRC_GPIN1, div, 0);
-            //clock_gpio_init_int_frac(25, CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_VALUE_CLKSRC_GPIN1, div * 64, 0);
         }
         else{
             div = 352800 / audio_clock;
-            //クロック変更
+            //ここで外部のクロック変更
             //picoのGPIOクロック出力だとクロック間の同期ができない
-            //clock_configure_gpin(clk_gpout0, 20, 22579200, 22579200);
-            //clock_gpio_init_int_frac(23, CLOCKS_CLK_GPOUT1_CTRL_AUXSRC_VALUE_CLKSRC_GPIN0, 1, 0);
-            //clock_gpio_init_int_frac(24, CLOCKS_CLK_GPOUT2_CTRL_AUXSRC_VALUE_CLKSRC_GPIN0, div, 0);
-            //clock_gpio_init_int_frac(25, CLOCKS_CLK_GPOUT3_CTRL_AUXSRC_VALUE_CLKSRC_GPIN0, div * 64, 0);
         }
     }
     else if (i2s_clock_mode == CLOCK_MODE_DEFAULT){
