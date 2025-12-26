@@ -9,6 +9,7 @@
  * 
  */
 
+#include <stdatomic.h>
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
@@ -21,28 +22,21 @@
 #include "i2s.pio.h"
 #include "i2s.h"
 
-static spin_lock_t* queue_spin_lock;
-
 static uint i2s_dout_pin        = 18;
 static uint i2s_clk_pin_base    = 20;
 static uint i2s_mclk_pin        = 22;
 static PIO  i2s_pio             = pio0;
-static uint i2s_sm              = 0;
-
-static int i2s_dma_chan         = 0;
-static bool i2s_use_core1       = false;
+static uint i2s_sm, i2s_mclk_sm;
+static int i2s_dma_chan;
 static CLOCK_MODE i2s_clock_mode = CLOCK_MODE_DEFAULT;
 static I2S_MODE i2s_mode        = MODE_I2S;
 
-static int8_t i2s_buf_length;
-static uint8_t enqueue_pos;
-static uint8_t dequeue_pos;
+static atomic_int queue_write = 0;
+static atomic_int queue_read = 0;
+static volatile int32_t queue_l[I2S_QUEUE_MAX];
+static volatile int32_t queue_r[I2S_QUEUE_MAX];
 
-static int32_t i2s_buf[I2S_BUF_DEPTH][I2S_DATA_LEN];
-static uint32_t i2s_sample[I2S_BUF_DEPTH];
-
-static int32_t mul_l;
-static int32_t mul_r;
+static int32_t mul_l, mul_r;
 
 //-100dB ~ 0dB (1dB step)
 static const int32_t db_to_vol[101] = {
@@ -58,26 +52,6 @@ static const int32_t db_to_vol[101] = {
     0x4251,         0x3b1b,         0x34ad,         0x2ef3,         0x29d7,         0x254b,         0x213c,         0x1d9f,         0x1a66,         0x1787,
     0x14f8,
 };
-
-/**
- * @brief set_playback_stateのデフォルトハンドラ
- * 
- * @param state 再生状態 true:再生開始 false:再生停止
- * @note PICO_DEFAULT_LED_PINで通知
- */
-static inline void default_playback_handler(bool state){
-    gpio_put(PICO_DEFAULT_LED_PIN, state);
-}
-static ExternalFunction playback_handler = default_playback_handler;
-
-/**
- * @brief i2s再生状態の切り替わりを通知する
- * 
- * @param state 再生状態 true:再生開始 false:再生停止
- */
-static inline void set_playback_state(bool state){
-    playback_handler(state);
-}
 
 /**
  * @brief システムクロックを180.75MHzに設定する
@@ -125,152 +99,17 @@ static void set_sys_clock_gpin1(void){
     clock_configure_gpin(clk_sys, 22, 49152 * KHZ, 49152 * KHZ);
 }
 
-/**
- * @brief i2sのバッファからデータを取り出すハンドラ
- * 
- * @note use_core1がfalseのときに呼び出される
- */
-static void __isr __time_critical_func(i2s_handler)(){
-	static bool mute;
-	static int32_t mute_buff[96 * 2] = {0};
-	static uint32_t mute_len = sizeof(mute_buff) / sizeof(int32_t);
-	
-	if (i2s_buf_length == 0 && mute == false){
-        mute = true;
-        set_playback_state(false);
-    }
-	else if (i2s_buf_length >= I2S_START_LEVEL && mute == true){
-        mute = false;
-        set_playback_state(true);
-    }
-
-	if (mute == false){
-		dma_channel_transfer_from_buffer_now(i2s_dma_chan, i2s_buf[dequeue_pos], i2s_sample[dequeue_pos]);
-		dequeue_pos++;
-		if (dequeue_pos >= I2S_BUF_DEPTH){
-            dequeue_pos = 0;
-        }
-		i2s_buf_length--;
-	}
-	else{
-		dma_channel_transfer_from_buffer_now(i2s_dma_chan, mute_buff, mute_len);
-	}
-    
-   	dma_hw->ints0 = 1u << i2s_dma_chan;
-}
-
-/**
- * @brief core1のメイン関数
- * 
- * @note use_core1がtrueのときに呼び出される
- */
-static void defalut_core1_main(void){
-    int32_t* buff;
-    int dma_sample[2], sample;
-    bool mute = false;
-    int32_t mute_buff[96 * 2] = {0};
-    uint32_t mute_len = sizeof(mute_buff) / sizeof(int32_t);
-    int8_t buf_length;
-    static int32_t dma_buff[2][I2S_DATA_LEN];
-    uint8_t dma_use = 0;
-
-    while (1){
-        buf_length = i2s_get_buf_length();
-
-        if (buf_length == 0 && mute == false){
-            mute = true;
-            set_playback_state(false);
-        }
-        else if (buf_length >= I2S_START_LEVEL && mute == true){
-            mute = false;
-            set_playback_state(true);
-        }
-
-        if (mute == true){
-            buff = mute_buff;
-            sample = mute_len;
-        }
-        else if (i2s_dequeue(&buff, &sample) == false){
-            buff = mute_buff;
-            sample = mute_len;
-        }
-        
-        //i2sバッファに格納
-        if (i2s_mode == MODE_EXDF){
-            //並び替え
-            int l = 0;
-            for (int i = 0, j = 0; i < sample; i += 2) {
-                uint32_t left_upper = part1by1_16(buff[i] & 0xFFFF);
-                uint32_t left_lower = part1by1_16(buff[i] >> 16);
-                uint32_t right_upper = part1by1_16(buff[i + 1] & 0xFFFF);
-                uint32_t right_lower = part1by1_16(buff[i + 1] >> 16);
-
-                dma_buff[dma_use][i] = (left_upper << 1) | right_upper;
-                dma_buff[dma_use][i + 1] = (left_lower << 1) | right_lower;
-            }
-        }
-        else if (i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_I2S_DUAL){
-            //並び替え
-            for (int i = 0, j = 0; i < sample; i += 2) {
-                uint32_t left_upper = part1by1_16(buff[i] & 0xFFFF);
-                uint32_t left_lower = part1by1_16(buff[i] >> 16);
-                uint32_t right_upper = part1by1_16(buff[i + 1] & 0xFFFF);
-                uint32_t right_lower = part1by1_16(buff[i + 1] >> 16);
-
-                dma_buff[dma_use][j++] = (left_upper << 1) | right_upper;
-                dma_buff[dma_use][j++] = (left_lower << 1) | right_lower;
-
-                //反転
-                int32_t d_r, d_l;
-                if (buff[i] == INT32_MIN){
-                    d_l = INT32_MAX;
-                }
-                else{
-                    d_l = -buff[i];
-                }
-                if (buff[i + 1] == INT32_MIN){
-                    d_r = INT32_MAX;
-                }
-                else{
-                    d_r = -buff[i + 1];
-                }
-
-                left_upper = part1by1_16(d_l & 0xFFFF);
-                left_lower = part1by1_16(d_l >> 16);
-                right_upper = part1by1_16(d_r & 0xFFFF);
-                right_lower = part1by1_16(d_r >> 16);
-
-                dma_buff[dma_use][j++] = (left_upper << 1) | right_upper;
-                dma_buff[dma_use][j++] = (left_lower << 1) | right_lower;
-            }
-            sample *= 2;
-        }
-        else {
-            for (int i = 0; i < sample; i++){
-                dma_buff[dma_use][i] = buff[i];
-            }
-        }
-        dma_sample[dma_use] = sample;
-
-        dma_channel_wait_for_finish_blocking(i2s_dma_chan);
-        dma_channel_transfer_from_buffer_now(i2s_dma_chan, dma_buff[dma_use], dma_sample[dma_use]);
-        dma_use ^= 1;
-    }
-}
-static Core1MainFunction core1_main_funcion = defalut_core1_main;
-
 void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin){
     i2s_dout_pin = data_pin;
     i2s_clk_pin_base = clock_pin_base;
     i2s_mclk_pin = mclk_pin;
 }
 
-//ロージッターモードを使うときはuart,i2s,spi設定よりも先に呼び出す
-void i2s_mclk_set_config(PIO pio, uint sm, int dma_ch, bool use_core1, CLOCK_MODE clock_mode, I2S_MODE mode){
+//ロージッターモードを使うときはuart,i2c,spi設定よりも先に呼び出す
+void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode){
     i2s_pio = pio;
-    i2s_sm = sm;
-    i2s_dma_chan = dma_ch;
-    i2s_use_core1 = use_core1;
+    i2s_sm = pio_claim_unused_sm(pio, true);
+    i2s_mclk_sm = pio_claim_unused_sm(pio, true);
     i2s_clock_mode = clock_mode;
     i2s_mode = mode;
 
@@ -283,10 +122,17 @@ void i2s_mclk_set_config(PIO pio, uint sm, int dma_ch, bool use_core1, CLOCK_MOD
     }
 }
 
+int i2s_get_dma_ch(void){
+    return i2s_dma_chan;
+}
+
+I2S_MODE i2s_get_i2s_mode(void){
+    return i2s_mode;
+}
+
 void i2s_init(void){
     pio_sm_config sm_config, sm_config_mclk;
     PIO pio = i2s_pio;
-    uint sm = i2s_sm;
     uint data_pin = i2s_dout_pin;
     uint clock_pin_base = i2s_clk_pin_base;
     uint offset, offset_mclk;
@@ -299,12 +145,12 @@ void i2s_init(void){
     pio_gpio_init(pio, i2s_mclk_pin);
 
     //mclk init
-    pio_sm_set_consecutive_pindirs(pio, sm + 1, i2s_mclk_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, i2s_mclk_sm, i2s_mclk_pin, 1, true);
     offset_mclk = pio_add_program(pio, &i2s_mclk_program);
     sm_config_mclk = i2s_mclk_program_get_default_config(offset_mclk);
     sm_config_set_set_pins(&sm_config_mclk, i2s_mclk_pin, 1);
-    pio_sm_init(pio, sm + 1, offset_mclk, &sm_config_mclk);
-    pio_sm_set_enabled(pio, sm + 1, true);
+    pio_sm_init(pio, i2s_mclk_sm, offset_mclk, &sm_config_mclk);
+    pio_sm_set_enabled(pio, i2s_mclk_sm, true);
 
     //i2s data init
     offset = pio_add_program(pio, &i2s_data_program);
@@ -314,13 +160,13 @@ void i2s_init(void){
     sm_config_set_out_shift(&sm_config, false, false, 32);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
 
-    pio_sm_init(pio, sm, offset, &sm_config);
+    pio_sm_init(pio, i2s_sm, offset, &sm_config);
     pin_mask = (1u << data_pin) | (3u << clock_pin_base);
-    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
-    pio_sm_exec(pio, sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, sm, 0);
-    pio_sm_clear_fifos(pio, sm);
-    pio_sm_set_enabled(pio, sm, true);
+    pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
+    pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
+    pio_sm_set_pins(pio, i2s_sm, 0);
+    pio_sm_clear_fifos(pio, i2s_sm);
+    pio_sm_set_enabled(pio, i2s_sm, true);
 }
 
 void pt8211_init(void){
@@ -390,7 +236,6 @@ void exdf_init(void){
 void i2s_dual_init(void){
     pio_sm_config sm_config, sm_config_mclk;
     PIO pio = i2s_pio;
-    uint sm = i2s_sm;
     uint data_pin = i2s_dout_pin;
     uint clock_pin_base = i2s_clk_pin_base;
     uint offset, offset_mclk;
@@ -403,11 +248,12 @@ void i2s_dual_init(void){
     pio_gpio_init(pio, clock_pin_base + 1);
     pio_gpio_init(pio, i2s_mclk_pin);
 
-    //i2s dual data init
-    pio_sm_set_consecutive_pindirs(pio, sm + 1, i2s_mclk_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, i2s_mclk_sm, i2s_mclk_pin, 1, true);
     offset_mclk = pio_add_program(pio, &i2s_mclk_program);
     sm_config_mclk = i2s_mclk_program_get_default_config(offset_mclk);
     sm_config_set_set_pins(&sm_config_mclk, i2s_mclk_pin, 1);
+    pio_sm_init(pio, i2s_mclk_sm, offset_mclk, &sm_config_mclk);
+    pio_sm_set_enabled(pio, i2s_mclk_sm, true);
 
     offset = pio_add_program(pio, &i2s_data_dual_program);
     sm_config = i2s_data_dual_program_get_default_config(offset);
@@ -415,6 +261,14 @@ void i2s_dual_init(void){
     sm_config_set_sideset_pins(&sm_config, clock_pin_base);
     sm_config_set_out_shift(&sm_config, false, false, 32);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+
+    pio_sm_init(pio, i2s_sm, offset, &sm_config);
+    pin_mask = (3u << data_pin) | (3u << clock_pin_base);
+    pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
+    pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
+    pio_sm_set_pins(pio, i2s_sm, 0);
+    pio_sm_clear_fifos(pio, i2s_sm);
+    pio_sm_set_enabled(pio, i2s_sm, true);
 }
 
 void pt8211_dual_init(void){
@@ -482,12 +336,6 @@ void i2s_mclk_init(uint32_t audio_clock){
     PIO pio = i2s_pio;
     uint sm = i2s_sm;
 
-    //再生状態をGPIO25で通知
-    if (playback_handler == default_playback_handler){
-        gpio_init(PICO_DEFAULT_LED_PIN);
-        gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    }
-
     switch (i2s_mode){
         case MODE_I2S:
             i2s_init();
@@ -510,13 +358,8 @@ void i2s_mclk_init(uint32_t audio_clock){
     }
     i2s_mclk_change_clock(audio_clock);
 
-    queue_spin_lock = spin_lock_init(spin_lock_claim_unused(true));
-    i2s_buf_length = 0;
-    enqueue_pos = 0;
-    dequeue_pos = 0;
-
-
     //dma init
+    i2s_dma_chan = dma_claim_unused_channel(true);
     dma_channel_config conf = dma_channel_get_default_config(i2s_dma_chan);
     
     channel_config_set_read_increment(&conf, true);
@@ -532,19 +375,6 @@ void i2s_mclk_init(uint32_t audio_clock){
         0,
         false
     );
-
-    dma_channel_set_irq0_enabled(i2s_dma_chan, true);
-    if (i2s_use_core1 == false){
-        irq_set_exclusive_handler(DMA_IRQ_0, i2s_handler);
-        irq_set_priority(DMA_IRQ_0, 0);
-        irq_set_enabled(DMA_IRQ_0, true);
-        i2s_handler();
-    }
-
-    //core1スタート
-    if (i2s_use_core1 == true){
-        multicore_launch_core1(core1_main_funcion);
-    }
 }
 
 void i2s_mclk_change_clock(uint32_t audio_clock){
@@ -571,11 +401,11 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
             if (audio_clock % 48000 == 0){
                 div = (float)clock_get_hz(clk_sys) / (49.152f * (float)MHZ);
-                pio_sm_set_clkdiv(i2s_pio, i2s_sm + 1, div);
+                pio_sm_set_clkdiv(i2s_pio, i2s_mclk_sm, div);
             }
             else{
                 div = (float)clock_get_hz(clk_sys) / (45.1584f * (float)MHZ);
-                pio_sm_set_clkdiv(i2s_pio, i2s_sm + 1, div);
+                pio_sm_set_clkdiv(i2s_pio, i2s_mclk_sm, div);
             }
         }
     }
@@ -584,10 +414,10 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
-                    pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_sm + 1, 4, 0);
+                    pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_mclk_sm, 4, 0);
                     break;
                 case CLOCK_MODE_EXTERNAL:
-                    pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_sm + 1, 1, 0);
+                    pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_mclk_sm, 1, 0);
                     break;
             }
         }
@@ -622,171 +452,195 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
     }
 }
 
-//i2sのバッファにusb受信データを積む
-bool i2s_enqueue(uint8_t* in, int sample, uint8_t resolution){
-    int i, j;
-    static int32_t lch_buf[I2S_DATA_LEN / 2];
-    static int32_t rch_buf[I2S_DATA_LEN / 2];
+bool i2s_enqueue(int32_t *buf_l, int32_t *buf_r, int length){
+    if ((I2S_QUEUE_MAX - 1 - i2s_get_queue_length()) < length) return false;
 
-	if (i2s_get_buf_length() < I2S_BUF_DEPTH){
-        if (resolution == 16){
-            int16_t *d = (int16_t*)in;
-            sample /= 2;
-            for (i = 0; i < sample / 2; i++){
-                lch_buf[i] = *d++ << 16;
-                rch_buf[i] = *d++ << 16;
-            }
-        }
-        else if (resolution == 24){
-            uint8_t *d = in;
-            int32_t e;
-            sample /= 3;
-            for (i = 0; i < sample / 2; i++){
-                e = 0;
-                e |= *d++ << 8;
-                e |= *d++ << 16;
-                e |= *d++ << 24;
-                lch_buf[i] = e;
-                e = 0;
-                e |= *d++ << 8;
-                e |= *d++ << 16;
-                e |= *d++ << 24;
-                rch_buf[i] = e;
-            }
-        }
-        else if (resolution == 32){
-            int32_t *d = (int32_t*)in;
-            sample /= 4;
-            for (i = 0; i < sample / 2; i++){
-                lch_buf[i] = *d++;
-                rch_buf[i] = *d++;
-            }
-        }
+    int w = atomic_load(&queue_write);
 
-        //音量処理
-        for (i = 0; i < sample / 2; i++){
-            lch_buf[i] = (int32_t)(((int64_t)lch_buf[i] * mul_l) >> 29u);
-            rch_buf[i] = (int32_t)(((int64_t)rch_buf[i] * mul_r) >> 29u);
-        }
-
-        //i2sバッファに格納
-        if (i2s_mode == MODE_EXDF && i2s_use_core1 == false){
-            //並び替え
-            for (int i = 0, j = 0; i < sample / 2; i++) {
-                uint32_t left_upper = part1by1_16(lch_buf[i] & 0xFFFF);
-                uint32_t left_lower = part1by1_16(lch_buf[i] >> 16);
-                uint32_t right_upper = part1by1_16(rch_buf[i] & 0xFFFF);
-                uint32_t right_lower = part1by1_16(rch_buf[i] >> 16);
-
-                i2s_buf[enqueue_pos][j++] = (left_upper << 1) | right_upper;
-                i2s_buf[enqueue_pos][j++] = (left_lower << 1) | right_lower;
-            }
-        }
-        else if ((i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_I2S_DUAL) && i2s_use_core1 == false){
-            //並び替え
-            for (int i = 0, j = 0; i < sample / 2; i++) {
-                uint32_t left_upper = part1by1_16(lch_buf[i] & 0xFFFF);
-                uint32_t left_lower = part1by1_16(lch_buf[i] >> 16);
-                uint32_t right_upper = part1by1_16(rch_buf[i] & 0xFFFF);
-                uint32_t right_lower = part1by1_16(rch_buf[i] >> 16);
-
-                i2s_buf[enqueue_pos][j++] = (left_upper << 1) | right_upper;
-                i2s_buf[enqueue_pos][j++] = (left_lower << 1) | right_lower;
-
-                //反転
-                int32_t d_r, d_l;
-                if (lch_buf[i] == INT32_MIN){
-                    d_l = INT32_MAX;
-                }
-                else{
-                    d_l = -lch_buf[i];
-                }
-                if (rch_buf[i] == INT32_MIN){
-                    d_r = INT32_MAX;
-                }
-                else{
-                    d_r = -rch_buf[i];
-                }
-
-                left_upper = part1by1_16(d_l & 0xFFFF);
-                left_lower = part1by1_16(d_l >> 16);
-                right_upper = part1by1_16(d_r & 0xFFFF);
-                right_lower = part1by1_16(d_r >> 16);
-
-                i2s_buf[enqueue_pos][j++] = (left_upper << 1) | right_upper;
-                i2s_buf[enqueue_pos][j++] = (left_lower << 1) | right_lower;
-            }
-            sample *= 2;
-        }
-        else {
-            j = 0;
-            for (i = 0; i < sample / 2; i++){
-                i2s_buf[enqueue_pos][j++] = lch_buf[i];
-                i2s_buf[enqueue_pos][j++] = rch_buf[i];
-            }
-        }
-        
-        i2s_sample[enqueue_pos] = sample;
-		enqueue_pos++;
-		if (enqueue_pos >= I2S_BUF_DEPTH){
-            enqueue_pos = 0;
-        }
-        
-        uint32_t save = spin_lock_blocking(queue_spin_lock);
-        i2s_buf_length++;
-        spin_unlock(queue_spin_lock, save);
-
-		return true;
-	}
-	else return false;
-}
-
-bool i2s_dequeue(int32_t** buff, int* sample){
-    if (i2s_get_buf_length()){
-        *buff = i2s_buf[dequeue_pos];
-        *sample = i2s_sample[dequeue_pos];
-
-        dequeue_pos++;
-        if (dequeue_pos >= I2S_BUF_DEPTH){
-            dequeue_pos = 0;
-        }
-
-        uint32_t save = spin_lock_blocking(queue_spin_lock);
-        i2s_buf_length--;
-        spin_unlock(queue_spin_lock, save);
-
-        return true;
+    int chunk1, chunk2;
+    if (w + length >= I2S_QUEUE_MAX){
+        chunk1 = I2S_QUEUE_MAX - w;
+        chunk2 = length - chunk1;
     }
-    else return false;
+    else{
+        chunk1 = length;
+        chunk2 = 0;
+    }
+
+    for (int i = 0; i < chunk1; i++){
+        queue_l[w + i] = buf_l[i];
+        queue_r[w + i] = buf_r[i];
+    }
+    for (int i = 0; i < chunk2; i++){
+        queue_l[i] = buf_l[chunk1 + i];
+        queue_r[i] = buf_r[chunk1 + i];
+    }
+
+    w += length;
+    if (w >= I2S_QUEUE_MAX) w -= I2S_QUEUE_MAX;
+    atomic_thread_fence(memory_order_release);
+    atomic_store(&queue_write, w);
+    return true;
 }
 
-int8_t i2s_get_buf_length(void){
-    int8_t d;
+int i2s_dequeue(int32_t *buf_l, int32_t *buf_r, int length){
+    int read_length = i2s_get_queue_length();
+    if (read_length <= 0) return 0;
 
-    uint32_t save = spin_lock_blocking(queue_spin_lock);
-	d = i2s_buf_length;
-    spin_unlock(queue_spin_lock, save);
+    if (read_length > length) read_length = length;
+    int r = atomic_load(&queue_read);
 
-    return d;
+    int chunk1, chunk2;
+    if (r + read_length >= I2S_QUEUE_MAX){
+        chunk1 = I2S_QUEUE_MAX - r;
+        chunk2 = read_length - chunk1;
+    }
+    else{
+        chunk1 = read_length;
+        chunk2 = 0;
+    }
+
+    for (int i = 0; i < chunk1; i++){
+        buf_l[i] = queue_l[r + i];
+        buf_r[i] = queue_r[r + i];
+    }
+    for (int i = 0; i < chunk2; i++){
+        buf_l[chunk1 + i] = queue_l[i];
+        buf_r[chunk1 + i] = queue_r[i];
+    }
+
+    r += read_length;
+    if (r >= I2S_QUEUE_MAX) r -= I2S_QUEUE_MAX;
+    atomic_thread_fence(memory_order_release);
+    atomic_store(&queue_read, r);
+    return read_length;
+}
+
+int i2s_get_queue_length(void){
+    int w = atomic_load(&queue_write);
+    int r = atomic_load(&queue_read);
+
+    if (w >= r) return w - r;
+    return I2S_QUEUE_MAX - r + w;
+}
+
+int i2s_unpack_uacdata(uint8_t* in, int sample, uint8_t resolution, int32_t *buf_l, int32_t *buf_r){
+    if (resolution == 16){
+        int16_t *d = (int16_t*)in;
+        sample /= 2;
+        for (int i = 0; i < sample / 2; i++){
+            buf_l[i] = *d++ << 16;
+            buf_r[i] = *d++ << 16;
+        }
+    }
+    else if (resolution == 24){
+        uint8_t *d = in;
+        int32_t e;
+        sample /= 3;
+        for (int i = 0; i < sample / 2; i++){
+            e = 0;
+            e |= *d++ << 8;
+            e |= *d++ << 16;
+            e |= *d++ << 24;
+            buf_l[i] = e;
+            e = 0;
+            e |= *d++ << 8;
+            e |= *d++ << 16;
+            e |= *d++ << 24;
+            buf_r[i] = e;
+        }
+    }
+    else if (resolution == 32){
+        int32_t *d = (int32_t*)in;
+        sample /= 4;
+        for (int i = 0; i < sample / 2; i++){
+            buf_l[i] = *d++;
+            buf_r[i] = *d++;
+        }
+    }
+
+    return sample / 2;
 }
 
 void i2s_volume_change(int16_t v, int8_t ch){
+    v = -v >> 8;
+    if (v > 100) v = 100;
+    else if (v < 0) v = 0;
+
     if (ch == 0){
-        mul_l = db_to_vol[-v >> 8];
-        mul_r = db_to_vol[-v >> 8];
+        mul_l = db_to_vol[v];
+        mul_r = db_to_vol[v];
     }
     else if (ch == 1){
-        mul_l = db_to_vol[-v >> 8];
+        mul_l = db_to_vol[v];
     }
     else if (ch == 2){
-        mul_r = db_to_vol[-v >> 8];
+        mul_r = db_to_vol[v];
     }
 }
 
-void set_playback_handler(ExternalFunction func){
-    playback_handler = func;
+void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length){
+    for (int i = 0; i < length; i++){
+        buf_l[i] = (int32_t)(((int64_t)buf_l[i] * mul_l) >> 29u);
+        buf_r[i] = (int32_t)(((int64_t)buf_r[i] * mul_r) >> 29u);
+    }
 }
 
-void set_core1_main_function(Core1MainFunction func){
-    core1_main_funcion = func;
+int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *buf_tx){
+    if (i2s_mode == MODE_EXDF){
+        //並び替え
+        for (int i = 0, j = 0; i < length; i++) {
+            uint32_t left_upper = part1by1_16(buf_l[i] & 0xFFFF);
+            uint32_t left_lower = part1by1_16(buf_l[i] >> 16);
+            uint32_t right_upper = part1by1_16(buf_r[i] & 0xFFFF);
+            uint32_t right_lower = part1by1_16(buf_r[i] >> 16);
+
+            buf_tx[j++] = (left_upper << 1) | right_upper;
+            buf_tx[j++] = (left_lower << 1) | right_lower;
+        }
+    }
+    else if (i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_I2S_DUAL){
+        //並び替え
+        for (int i = 0, j = 0; i < length; i++) {
+            uint32_t left_upper = part1by1_16(buf_l[i] & 0xFFFF);
+            uint32_t left_lower = part1by1_16(buf_l[i] >> 16);
+            uint32_t right_upper = part1by1_16(buf_r[i] & 0xFFFF);
+            uint32_t right_lower = part1by1_16(buf_r[i] >> 16);
+
+            buf_tx[j++] = (left_upper << 1) | right_upper;
+            buf_tx[j++] = (left_lower << 1) | right_lower;
+
+            //反転
+            int32_t d_r, d_l;
+            if (buf_l[i] == INT32_MIN){
+                d_l = INT32_MAX;
+            }
+            else{
+                d_l = -buf_l[i];
+            }
+            if (buf_r[i] == INT32_MIN){
+                d_r = INT32_MAX;
+            }
+            else{
+                d_r = -buf_r[i];
+            }
+
+            left_upper = part1by1_16(d_l & 0xFFFF);
+            left_lower = part1by1_16(d_l >> 16);
+            right_upper = part1by1_16(d_r & 0xFFFF);
+            right_lower = part1by1_16(d_r >> 16);
+
+            buf_tx[j++] = (left_upper << 1) | right_upper;
+            buf_tx[j++] = (left_lower << 1) | right_lower;
+        }
+        length *= 2;
+    }
+    else {
+        for (int i = 0, j = 0; i < length; i++){
+            buf_tx[j++] = buf_l[i];
+            buf_tx[j++] = buf_r[i];
+        }
+    }
+
+    return length * 2;
 }
