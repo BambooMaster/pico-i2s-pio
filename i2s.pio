@@ -4,8 +4,6 @@
  * @file i2s.pio
  * @author BambooMaster (https://misskey.hakoniwa-project.com/@BambooMaster)
  * @brief pico-i2s-pio
- * @version 0.5
- * @date 2025-11-08
  * 
  */
 
