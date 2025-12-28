@@ -31,19 +31,6 @@ typedef enum {
 } CLOCK_MODE;
 
 /**
- * @brief 再生状態の切り替わりを通知する関数の型
- * 
- * @param state 再生状態 true:再生開始 false:再生停止
- */
-typedef void (*ExternalFunction)(bool state);
-
-/**
- * @brief core1のmain関数の型
- * 
- */
-typedef void (*Core1MainFunction)(void);
-
-/**
  * @brief i2sの出力ピンを設定する
  * 
  * @param data_pin data出力ピン
