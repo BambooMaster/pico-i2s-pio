@@ -658,3 +658,8 @@ int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *buf
 
     return length * 2;
 }
+
+void i2s_dma_transfer_bloking(int32_t *read_addr, int transfer_count){
+    dma_channel_wait_for_finish_blocking(i2s_dma_chan);
+    dma_channel_transfer_from_buffer_now(i2s_dma_chan, read_addr, transfer_count);
+}

@@ -179,4 +179,12 @@ static __force_inline uint32_t part1by1_16(uint16_t x){
     return res;
 }
 
+/**
+ * @brief i2s dmaの転送を開始
+ * 
+ * @param read_addr 送信データのアドレス
+ * @param transfer_count 送信するデータの長さ
+ */
+void i2s_dma_transfer_bloking(int32_t *read_addr, int transfer_count);
+
 #endif
