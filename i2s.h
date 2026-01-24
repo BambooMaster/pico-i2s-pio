@@ -47,126 +47,126 @@ typedef enum {
 } CLOCK_MODE;
 
 /**
- * @brief i2sの出力ピンを設定する
+ * @brief I2S出力ピンの設定
  * 
- * @param data_pin data出力ピン
- * @param clock_pin_base LRCLK出力ピン
- * @param mclk_pin_pin LRCLK出力ピン
- * @note BCLK=clock_pin_base+1
- * @note MODE_EXDFの場合、DOUTL = data_pin, DOUTR = data_pin + 1, WCK=clock_pin_base, BCK=clock_pin_base+1 MCLK=clock_pin_base+2
+ * @param data_pin データ出力ピン
+ * @param clock_pin_base LRCLK/WCKピン (BCLKはclock_pin_base+1)
+ * @param mclk_pin MCLKピン
+ * @note BCLK = clock_pin_base + 1
+ * @note MODE_EXDFの場合: DOUTL=data_pin, DOUTR=data_pin+1, WCK=clock_pin_base, BCK=clock_pin_base+1, MCLK=clock_pin_base+2
  */
 void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin);
 
 /**
- * @brief i2sの設定を行う
+ * @brief I2Sドライバの設定
  * 
- * @param pio i2sに使用するpio pio0 or pio1
- * @param clock_mode クロックモードの選択 (CLOCK_MODE_DEFAULT, CLOCK_MODE_LOW_JITTER, CLOCK_MODE_EXTERNAL)
- * @param mode 出力するフォーマットを選択する (MODE_I2S, MODE_PT8211, MODE_EXDF, MODE_I2S_DUAL, MODE_PT8211_DUAL)
- * @note lowジッタモードを使用する場合はuart,i2s,spi設定よりも先に呼び出す
- * @note MODE_PT8211はBCLK32fsのlsbj16,MCLKなし
+ * @param pio 使用するPIOインスタンス (pio0 または pio1)
+ * @param clock_mode クロック生成モード (DEFAULT, LOW_JITTER, EXTERNAL)
+ * @param mode 出力フォーマット (I2S, PT8211, EXDF, DUAL等)
+ * @note Lowジッタモードを使用する場合は、UART/I2C/SPI設定よりも先に呼び出す必要があります。
+ * @note MODE_PT8211はBCLK=32fs (LSB Justified 16bit), MCLKなしとなります。
  */
 void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode);
 
 /**
- * @brief i2sのモードを取得する
+ * @brief 現在のI2Sモードを取得
  * 
- * @return i2s mode
+ * @return 現在のI2Sモード
  */
 I2S_MODE i2s_get_i2s_mode(void);
 
 /**
- * @brief i2sの初期化を行う
+ * @brief I2Sドライバの初期化と開始
  * 
- * @param audio_clock サンプリング周波数
- * @note 呼び出してすぐにi2sの出力が開始される
+ * @param audio_clock サンプリングレート (Hz)
+ * @note 呼び出し直後からI2S出力が開始されます。
  */
 void i2s_mclk_init(uint32_t audio_clock);
 
 /**
- * @brief i2sの周波数を変更する
+ * @brief サンプリングレートの変更
  * 
- * @param audio_clock サンプリング周波数
+ * @param audio_clock 新しいサンプリングレート (Hz)
  */
 void i2s_mclk_change_clock(uint32_t audio_clock);
 
 /**
- * @brief i2sのバッファに格納する
+ * @brief 送信キューへのデータ追加
  * 
- * @param buf_l 格納するLchデータのポインタ
- * @param buf_r 格納するRchデータのポインタ
- * @param length 格納するデータの長さ
+ * @param buf_l Lchデータバッファ
+ * @param buf_r Rchデータバッファ
+ * @param length データ長 (サンプル数)
  * @return true 成功
- * @return false 失敗(バッファが一杯)
+ * @return false 失敗 (キューが満杯)
  */
 bool i2s_enqueue(int32_t *buf_l, int32_t *buf_r, int length);
 
 /**
- * @brief i2sのバッファからデータを取り出す
+ * @brief 送信キューからのデータ取り出し
  * 
- * @param buf_l 取り出したLchデータの格納先のポインタ
- * @param buf_r 取り出したLchデータの格納先のポインタ
- * @param length 取り出すデータの長さ
- * @return 取り出しに成功したデータの長さ
+ * @param buf_l Lch出力バッファ
+ * @param buf_r Rch出力バッファ
+ * @param length 要求データ長 (サンプル数)
+ * @return 実際に取り出したデータ長
  */
 int i2s_dequeue(int32_t *buf_l, int32_t *buf_r, int length);
 
 /**
- * @brief i2sのバッファの格納量を取得する
+ * @brief 送信キュー内のデータ残量を取得
  * 
- * @return バッファの長さ
+ * @return キュー内のデータ数 (サンプル数)
  */
 int i2s_get_queue_length(void);
 
 /**
- * @brief usb audioから送られてくる8ビットパックデータをint32_tに変換する
+ * @brief USBオーディオデータ(8bitパック)を32bit整数へ変換
  * 
- * @param in 8ビットパックデータのポインタ
- * @param sample 8ビットパックデータの長さ
- * @param resolution 
- * @param buf_l 変換したLchデータの格納先ののポインタ
- * @param buf_r 変換したRchデータの格納先ののポインタ
- * @return 変換したL/Rchデータの長さ
+ * @param in 入力データポインタ (USBパケット)
+ * @param sample 入力データ長 (バイト数)
+ * @param resolution ビット深度 (16, 24, 32)
+ * @param buf_l Lch出力バッファ
+ * @param buf_r Rch出力バッファ
+ * @return 変換後のデータ長 (サンプル数)
  */
-int i2s_unpack_uacdata(uint8_t* in, int sample, uint8_t resolution, int32_t *lch_buf, int32_t *rch_buf);
+int i2s_unpack_uacdata(uint8_t* in, int sample, uint8_t resolution, int32_t *buf_l, int32_t *buf_r);
 
 /**
- * @brief i2sの音量を変更する
+ * @brief 出力音量の設定
  * 
- * @param v 音量 (n[dB] << 128)
- * @param ch チャンネル 0:L&R 1:L 2:R
+ * @param v 音量値 (単位: 1/256 dB)
+ * @param ch 対象チャンネル (0:Master, 1:L, 2:R)
  */
 void i2s_volume_change(int16_t v, int8_t ch);
 
 /**
- * @brief 音量処理
+ * @brief 音量調整処理の適用
  * 
- * @param buf_l 音量処理するLchデータのポインタ
- * @param buf_r 音量処理するRchデータのポインタ
- * @param length 音量処理するデータの長さ
+ * @param buf_l Lchデータバッファ (In/Out)
+ * @param buf_r Rchデータバッファ (In/Out)
+ * @param length データ長 (サンプル数)
  */
 void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length);
 
 /**
- * @brief i2s LR別の音声データをpioの送信バッファに変換して格納する
+ * @brief L/RデータをPIO送信形式に変換
  * 
- * @param buf_l 変換するLchデータのポインタ
- * @param buf_r 変換するRchデータのポインタ
- * @param length 入力データの長さ
- * @param tx_buf_a 格納先 送信バッファa
- * @param tx_buf_b 格納先 送信バッファa
- * @return tx_length 格納した送信バッファの長さ
- * @note dual/exdfモード時、送信バッファbのデータをdata_pin+1に出力します。
+ * @param buf_l Lch入力データ
+ * @param buf_r Rch入力データ
+ * @param length データ長 (サンプル数)
+ * @param tx_buf_a 送信バッファA
+ * @param tx_buf_b 送信バッファB
+ * @return 生成された送信データの長さ
+ * @note Dual/EXDFモード時は、送信バッファBのデータが data_pin+1 に出力されます。
  */
 int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b);
 
 /**
- * @brief i2s dmaの送信アドレスと送信カウントを指定して転送を開始
+ * @brief DMA転送の開始 (ブロッキング待機含む)
  * 
- * @param tx_buf_a 送信バッファaのアドレス
- * @param tx_buf_b 送信バッファbのアドレス
- * @param tx_length 送信するデータの長さ
- * @note dual/exdfモード時、送信バッファbのデータをdata_pin+1に出力します。
+ * @param tx_buf_a 送信バッファA
+ * @param tx_buf_b 送信バッファB
+ * @param tx_length 転送データ長
+ * @note Dual/EXDFモード時は、送信バッファBのデータが data_pin+1 に出力されます。
  */
 void i2s_dma_transfer_bloking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length);
 
