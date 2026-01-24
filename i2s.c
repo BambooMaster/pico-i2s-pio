@@ -40,8 +40,8 @@ static uint i2s_dout_pin        = 18;
 static uint i2s_clk_pin_base    = 20;
 static uint i2s_mclk_pin        = 22;
 static PIO  i2s_pio             = pio0;
-static uint i2s_sm, i2s_mclk_sm;
-static int i2s_dma_chan;
+static uint i2s_sm, i2s_mclk_sm, i2s_dual_sm, i2s_sm_mask;
+static int i2s_dma_chan_a, i2s_dma_chan_b;
 static CLOCK_MODE i2s_clock_mode = CLOCK_MODE_DEFAULT;
 static I2S_MODE i2s_mode        = MODE_I2S;
 
@@ -124,6 +124,7 @@ void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode){
     i2s_pio = pio;
     i2s_sm = pio_claim_unused_sm(pio, true);
     i2s_mclk_sm = pio_claim_unused_sm(pio, true);
+    i2s_dual_sm = pio_claim_unused_sm(pio, true);
     i2s_clock_mode = clock_mode;
     i2s_mode = mode;
 
@@ -134,10 +135,6 @@ void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode){
     if (i2s_clock_mode != CLOCK_MODE_DEFAULT){
         clock_configure_undivided(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLKSRC_PLL_USB, USB_CLK_HZ);
     }
-}
-
-int i2s_get_dma_ch(void){
-    return i2s_dma_chan;
 }
 
 I2S_MODE i2s_get_i2s_mode(void){
@@ -217,7 +214,6 @@ void pt8211_init(void){
 void exdf_init(void){
     pio_sm_config sm_config;
     PIO pio = i2s_pio;
-    uint sm = i2s_sm;
     uint data_pin = i2s_dout_pin;
     uint clock_pin_base = i2s_clk_pin_base;
     uint offset;
@@ -231,20 +227,33 @@ void exdf_init(void){
     pio_gpio_init(pio, clock_pin_base + 2);
 
     //exdf data init
-    offset = pio_add_program(pio, &i2s_exdf_program);
-    sm_config = i2s_exdf_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin, 2);
+    offset = pio_add_program(pio, &i2s_exdf_a_program);
+    sm_config = i2s_exdf_a_program_get_default_config(offset);
+    sm_config_set_out_pins(&sm_config, data_pin, 1);
     sm_config_set_sideset_pins(&sm_config, clock_pin_base);
     sm_config_set_out_shift(&sm_config, false, false, 32);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    pio_sm_init(pio, i2s_sm, offset, &sm_config);
+    pin_mask = (1u << data_pin) | (7u << clock_pin_base);
+    pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
+    pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
+    pio_sm_set_pins(pio, i2s_sm, 0);
+    pio_sm_clear_fifos(pio, i2s_sm);
 
-    pio_sm_init(pio, sm, offset, &sm_config);
-    pin_mask = (3u << data_pin) | (7u << clock_pin_base);
-    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
-    pio_sm_exec(pio, sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, sm, 0);
-    pio_sm_clear_fifos(pio, sm);
-    pio_sm_set_enabled(pio, sm, true);
+    // i2s dual init
+    pio_sm_set_consecutive_pindirs(pio, i2s_dual_sm, data_pin + 1, 1, true);
+    offset = pio_add_program(pio, &i2s_exdf_b_program);
+    sm_config = i2s_exdf_b_program_get_default_config(offset);
+    sm_config_set_out_pins(&sm_config, data_pin + 1, 1);
+    sm_config_set_out_shift(&sm_config, false, false, 32);
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    pio_sm_init(pio, i2s_dual_sm, offset, &sm_config);
+    pio_sm_exec(pio, i2s_dual_sm, pio_encode_jmp(offset));
+    pio_sm_set_pins(pio, i2s_dual_sm, 0);
+    pio_sm_clear_fifos(pio, i2s_dual_sm);
+
+    i2s_sm_mask = (1u << i2s_sm) | (1u << i2s_dual_sm);
+    pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
 }
 
 void i2s_dual_init(void){
@@ -262,6 +271,7 @@ void i2s_dual_init(void){
     pio_gpio_init(pio, clock_pin_base + 1);
     pio_gpio_init(pio, i2s_mclk_pin);
 
+    // mclk init
     pio_sm_set_consecutive_pindirs(pio, i2s_mclk_sm, i2s_mclk_pin, 1, true);
     offset_mclk = pio_add_program(pio, &i2s_mclk_program);
     sm_config_mclk = i2s_mclk_program_get_default_config(offset_mclk);
@@ -269,20 +279,34 @@ void i2s_dual_init(void){
     pio_sm_init(pio, i2s_mclk_sm, offset_mclk, &sm_config_mclk);
     pio_sm_set_enabled(pio, i2s_mclk_sm, true);
 
-    offset = pio_add_program(pio, &i2s_data_dual_program);
-    sm_config = i2s_data_dual_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin, 2);
+    //i2s data init
+    offset = pio_add_program(pio, &i2s_data_program);
+    sm_config = i2s_data_program_get_default_config(offset);
+    sm_config_set_out_pins(&sm_config, data_pin, 1);
     sm_config_set_sideset_pins(&sm_config, clock_pin_base);
     sm_config_set_out_shift(&sm_config, false, false, 32);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-
     pio_sm_init(pio, i2s_sm, offset, &sm_config);
-    pin_mask = (3u << data_pin) | (3u << clock_pin_base);
+    pin_mask = (1u << data_pin) | (3u << clock_pin_base);
     pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
     pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
     pio_sm_set_pins(pio, i2s_sm, 0);
     pio_sm_clear_fifos(pio, i2s_sm);
-    pio_sm_set_enabled(pio, i2s_sm, true);
+
+    // i2s dual init
+    pio_sm_set_consecutive_pindirs(pio, i2s_dual_sm, data_pin + 1, 1, true);
+    offset = pio_add_program(pio, &i2s_data_dual_program);
+    sm_config = i2s_data_dual_program_get_default_config(offset);
+    sm_config_set_out_pins(&sm_config, data_pin + 1, 1);
+    sm_config_set_out_shift(&sm_config, false, false, 32);
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    pio_sm_init(pio, i2s_dual_sm, offset, &sm_config);
+    pio_sm_exec(pio, i2s_dual_sm, pio_encode_jmp(offset));
+    pio_sm_set_pins(pio, i2s_dual_sm, 0);
+    pio_sm_clear_fifos(pio, i2s_dual_sm);
+
+    i2s_sm_mask = (1u << i2s_sm) | (1u << i2s_dual_sm);
+    pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
 }
 
 void pt8211_dual_init(void){
@@ -300,21 +324,34 @@ void pt8211_dual_init(void){
     pio_gpio_init(pio, clock_pin_base);
     pio_gpio_init(pio, clock_pin_base + 1);
 
-    //pt8211 dual data init
-    offset = pio_add_program(pio, &i2s_pt8211_dual_program);
-    sm_config = i2s_pt8211_dual_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin, 2);
+    //pt8211 data init
+    offset = pio_add_program(pio, &i2s_pt8211_program);
+    sm_config = i2s_pt8211_program_get_default_config(offset);
+    sm_config_set_out_pins(&sm_config, data_pin, 1);
     sm_config_set_sideset_pins(&sm_config, clock_pin_base);
     sm_config_set_out_shift(&sm_config, false, false, 32);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    pio_sm_init(pio, i2s_sm, offset, &sm_config);
+    pin_mask = (1u << data_pin) | (3u << clock_pin_base);
+    pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
+    pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
+    pio_sm_set_pins(pio, i2s_sm, 0);
+    pio_sm_clear_fifos(pio, i2s_sm);
 
-    pio_sm_init(pio, sm, offset, &sm_config);
-    pin_mask = (3u << data_pin) | (3u << clock_pin_base);
-    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
-    pio_sm_exec(pio, sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, sm, 0);
-    pio_sm_clear_fifos(pio, sm);
-    pio_sm_set_enabled(pio, sm, true);
+    // pt8211 dual init
+    pio_sm_set_consecutive_pindirs(pio, i2s_dual_sm, data_pin + 1, 1, true);
+    offset = pio_add_program(pio, &i2s_pt8211_dual_program);
+    sm_config = i2s_pt8211_dual_program_get_default_config(offset);
+    sm_config_set_out_pins(&sm_config, data_pin + 1, 1);
+    sm_config_set_out_shift(&sm_config, false, false, 32);
+    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
+    pio_sm_init(pio, i2s_dual_sm, offset, &sm_config);
+    pio_sm_exec(pio, i2s_dual_sm, pio_encode_jmp(offset));
+    pio_sm_set_pins(pio, i2s_dual_sm, 0);
+    pio_sm_clear_fifos(pio, i2s_dual_sm);
+
+    i2s_sm_mask = (1u << i2s_sm) | (1u << i2s_dual_sm);
+    pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
 }
 
 void i2s_slave_init(void){
@@ -373,22 +410,41 @@ void i2s_mclk_init(uint32_t audio_clock){
     i2s_mclk_change_clock(audio_clock);
 
     //dma init
-    i2s_dma_chan = dma_claim_unused_channel(true);
-    dma_channel_config conf = dma_channel_get_default_config(i2s_dma_chan);
+    i2s_dma_chan_a = dma_claim_unused_channel(true);
+    dma_channel_config conf = dma_channel_get_default_config(i2s_dma_chan_a);
     
     channel_config_set_read_increment(&conf, true);
     channel_config_set_write_increment(&conf, false);
     channel_config_set_transfer_data_size(&conf, DMA_SIZE_32);
-    channel_config_set_dreq(&conf, pio_get_dreq(pio, sm, true));
+    channel_config_set_dreq(&conf, pio_get_dreq(pio, i2s_sm, true));
     
     dma_channel_configure(
-        i2s_dma_chan,
+        i2s_dma_chan_a,
         &conf,
         &i2s_pio->txf[i2s_sm],
         NULL,
         0,
         false
     );
+
+    if (i2s_mode == MODE_I2S_DUAL || i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_EXDF){
+        i2s_dma_chan_b = dma_claim_unused_channel(true);
+        conf = dma_channel_get_default_config(i2s_dma_chan_b);
+        
+        channel_config_set_read_increment(&conf, true);
+        channel_config_set_write_increment(&conf, false);
+        channel_config_set_transfer_data_size(&conf, DMA_SIZE_32);
+        channel_config_set_dreq(&conf, pio_get_dreq(pio, i2s_dual_sm, true));
+        
+        dma_channel_configure(
+            i2s_dma_chan_b,
+            &conf,
+            &i2s_pio->txf[i2s_dual_sm],
+            NULL,
+            0,
+            false
+        );
+    }
 }
 
 void i2s_mclk_change_clock(uint32_t audio_clock){
@@ -409,7 +465,16 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
     else if (i2s_clock_mode == CLOCK_MODE_DEFAULT){
         float div;
         div = (float)clock_get_hz(clk_sys) / (float)(audio_clock * 128);
-        pio_sm_set_clkdiv(i2s_pio, i2s_sm, div);
+
+        if (i2s_mode == MODE_I2S_DUAL || i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_EXDF){
+            pio_set_sm_mask_enabled(i2s_pio, i2s_sm_mask, false);
+            pio_sm_set_clkdiv(i2s_pio, i2s_sm, div);
+            pio_sm_set_clkdiv(i2s_pio, i2s_dual_sm, div);
+            pio_enable_sm_mask_in_sync(i2s_pio, i2s_sm_mask);
+        }
+        else{
+            pio_sm_set_clkdiv(i2s_pio, i2s_sm, div);
+        }
 
         //mclk
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
@@ -462,7 +527,16 @@ void i2s_mclk_change_clock(uint32_t audio_clock){
                     break;
             }
         }
-        pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_sm, dev, 0);
+
+        if (i2s_mode == MODE_I2S_DUAL || i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_EXDF){
+            pio_set_sm_mask_enabled(i2s_pio, i2s_sm_mask, false);
+            pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_sm, dev, 0);
+            pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_dual_sm, dev, 0);
+            pio_enable_sm_mask_in_sync(i2s_pio, i2s_sm_mask);
+        }
+        else{
+            pio_sm_set_clkdiv_int_frac(i2s_pio, i2s_sm, dev, 0);
+        }
     }
 }
 
@@ -600,30 +674,16 @@ void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length){
     }
 }
 
-int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *buf_tx){
+int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b){
     if (i2s_mode == MODE_EXDF){
-        //並び替え
-        for (int i = 0, j = 0; i < length; i++) {
-            uint32_t left_upper = part1by1_16(buf_l[i] & 0xFFFF);
-            uint32_t left_lower = part1by1_16(buf_l[i] >> 16);
-            uint32_t right_upper = part1by1_16(buf_r[i] & 0xFFFF);
-            uint32_t right_lower = part1by1_16(buf_r[i] >> 16);
-
-            buf_tx[j++] = (left_upper << 1) | right_upper;
-            buf_tx[j++] = (left_lower << 1) | right_lower;
+        for (int i = 0; i < length; i++){
+            tx_buf_a[i] = buf_l[i];
+            tx_buf_b[i] = buf_r[i];
         }
     }
     else if (i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_I2S_DUAL){
         //並び替え
         for (int i = 0, j = 0; i < length; i++) {
-            uint32_t left_upper = part1by1_16(buf_l[i] & 0xFFFF);
-            uint32_t left_lower = part1by1_16(buf_l[i] >> 16);
-            uint32_t right_upper = part1by1_16(buf_r[i] & 0xFFFF);
-            uint32_t right_lower = part1by1_16(buf_r[i] >> 16);
-
-            buf_tx[j++] = (left_upper << 1) | right_upper;
-            buf_tx[j++] = (left_lower << 1) | right_lower;
-
             //反転
             int32_t d_r, d_l;
             if (buf_l[i] == INT32_MIN){
@@ -639,27 +699,40 @@ int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *buf
                 d_r = -buf_r[i];
             }
 
-            left_upper = part1by1_16(d_l & 0xFFFF);
-            left_lower = part1by1_16(d_l >> 16);
-            right_upper = part1by1_16(d_r & 0xFFFF);
-            right_lower = part1by1_16(d_r >> 16);
-
-            buf_tx[j++] = (left_upper << 1) | right_upper;
-            buf_tx[j++] = (left_lower << 1) | right_lower;
+            tx_buf_a[j] = buf_l[i];
+            tx_buf_b[j] = buf_r[i];
+            j++;
+            tx_buf_a[j] = d_l;
+            tx_buf_b[j] = d_r;
+            j++;
         }
         length *= 2;
     }
     else {
         for (int i = 0, j = 0; i < length; i++){
-            buf_tx[j++] = buf_l[i];
-            buf_tx[j++] = buf_r[i];
+            tx_buf_a[j++] = buf_l[i];
+            tx_buf_a[j++] = buf_r[i];
         }
+        length *= 2;
     }
 
-    return length * 2;
+    return length;
 }
 
-void i2s_dma_transfer_bloking(int32_t *read_addr, int transfer_count){
-    dma_channel_wait_for_finish_blocking(i2s_dma_chan);
-    dma_channel_transfer_from_buffer_now(i2s_dma_chan, read_addr, transfer_count);
+void i2s_dma_transfer_bloking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length){
+    if (i2s_mode == MODE_I2S_DUAL || i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_EXDF){
+        uint32_t mask = (1u << i2s_dma_chan_a) | (1u << i2s_dma_chan_b);
+        while (dma_channel_is_busy(i2s_dma_chan_a) || dma_channel_is_busy(i2s_dma_chan_b)) tight_loop_contents();
+
+        dma_channel_set_transfer_count(i2s_dma_chan_a, tx_length, false);
+        dma_channel_set_read_addr(i2s_dma_chan_a, tx_buf_a, false);
+        dma_channel_set_transfer_count(i2s_dma_chan_b, tx_length, false);
+        dma_channel_set_read_addr(i2s_dma_chan_b, tx_buf_b, false);
+
+        dma_start_channel_mask(mask);
+    }
+    else{
+        dma_channel_wait_for_finish_blocking(i2s_dma_chan_a);
+        dma_channel_transfer_from_buffer_now(i2s_dma_chan_a, tx_buf_a, tx_length);
+    }
 }

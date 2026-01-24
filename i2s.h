@@ -69,13 +69,6 @@ void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin);
 void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode);
 
 /**
- * @brief i2sで使用するdmaのチャンネルを取得する
- * 
- * @return dma ch
- */
-int i2s_get_dma_ch(void);
-
-/**
  * @brief i2sのモードを取得する
  * 
  * @return i2s mode
@@ -155,36 +148,26 @@ void i2s_volume_change(int16_t v, int8_t ch);
 void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length);
 
 /**
- * @brief i2s pioの形式にデータを変換する
+ * @brief i2s LR別の音声データをpioの送信バッファに変換して格納する
  * 
  * @param buf_l 変換するLchデータのポインタ
  * @param buf_r 変換するRchデータのポインタ
- * @param length 変換するデータの長さ
- * @param buf_tx 変換したデータを格納するポインタ
- * @return 変換後のデータの長さ
+ * @param length 入力データの長さ
+ * @param tx_buf_a 格納先 送信バッファa
+ * @param tx_buf_b 格納先 送信バッファa
+ * @return tx_length 格納した送信バッファの長さ
+ * @note dual/exdfモード時、送信バッファbのデータをdata_pin+1に出力します。
  */
-int i2s_format_piodata(int32_t *lch_buf, int32_t *rch_buf, int length, uint32_t *buf_tx);
+int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b);
 
 /**
- * @brief EXDFのLRのビットを交互に並び替える操作の高速化関数
+ * @brief i2s dmaの送信アドレスと送信カウントを指定して転送を開始
  * 
- * @param x 入力
+ * @param tx_buf_a 送信バッファaのアドレス
+ * @param tx_buf_b 送信バッファbのアドレス
+ * @param tx_length 送信するデータの長さ
+ * @note dual/exdfモード時、送信バッファbのデータをdata_pin+1に出力します。
  */
-static __force_inline uint32_t part1by1_16(uint16_t x){
-    uint32_t res = x;
-    res = (res | (res << 8))  & 0x00FF00FF;
-    res = (res | (res << 4))  & 0x0F0F0F0F;
-    res = (res | (res << 2))  & 0x33333333;
-    res = (res | (res << 1))  & 0x55555555;
-    return res;
-}
-
-/**
- * @brief i2s dmaの転送を開始
- * 
- * @param read_addr 送信データのアドレス
- * @param transfer_count 送信するデータの長さ
- */
-void i2s_dma_transfer_bloking(int32_t *read_addr, int transfer_count);
+void i2s_dma_transfer_bloking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length);
 
 #endif
