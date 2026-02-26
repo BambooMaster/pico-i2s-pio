@@ -30,7 +30,7 @@
 #define I2S_MAX_FREQ_KHZ    96
 #define I2S_QUEUE_LEN     10
 #define I2S_QUEUE_MAX       (I2S_MAX_FREQ_KHZ * I2S_QUEUE_LEN)
-
+#define I2S_DEQUEUE_LEN     48
 
 typedef enum {
     MODE_I2S,
