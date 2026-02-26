@@ -27,8 +27,9 @@
 #define I2S_H
 #include "hardware/pio.h"
 
-#define I2S_DEQUEUE_LEN     48
-#define I2S_QUEUE_MAX       (I2S_DEQUEUE_LEN * 8)
+#define I2S_MAX_FREQ_KHZ    96
+#define I2S_QUEUE_LEN     10
+#define I2S_QUEUE_MAX       (I2S_MAX_FREQ_KHZ * I2S_QUEUE_LEN)
 
 
 typedef enum {
@@ -169,5 +170,12 @@ int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_
  * @note Dual/EXDFモード時は、送信バッファBのデータが data_pin+1 に出力されます。
  */
 void i2s_dma_transfer_bloking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length);
+
+/**
+ * @brief 現在のi2sサンプリングレート取得
+ * 
+ * @return i2sサンプリングレート
+ */
+uint32_t i2s_get_freq(void);
 
 #endif

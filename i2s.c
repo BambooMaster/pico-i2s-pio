@@ -49,7 +49,7 @@ static atomic_int queue_write = 0;
 static atomic_int queue_read = 0;
 static volatile int32_t queue_l[I2S_QUEUE_MAX];
 static volatile int32_t queue_r[I2S_QUEUE_MAX];
-
+static atomic_uint i2s_freq = 44100;
 static int32_t mul_l, mul_r;
 
 // -100dB ~ 0dB (1dB step)
@@ -449,6 +449,8 @@ void i2s_mclk_init(uint32_t audio_clock){
 
 void i2s_mclk_change_clock(uint32_t audio_clock){
     // 周波数変更
+    atomic_store(&i2s_freq, audio_clock);
+    
     if (i2s_mode == MODE_I2S_SLAVE){
         if (audio_clock % 48000 == 0){
             // ここで外部のクロック変更
@@ -732,4 +734,8 @@ void i2s_dma_transfer_bloking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_lengt
         dma_channel_wait_for_finish_blocking(i2s_dma_chan_a);
         dma_channel_transfer_from_buffer_now(i2s_dma_chan_a, tx_buf_a, tx_length);
     }
+}
+
+uint32_t i2s_get_freq(void){
+    return atomic_load(&i2s_freq);
 }
