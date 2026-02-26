@@ -27,8 +27,12 @@
 #define I2S_H
 #include "hardware/pio.h"
 
-#define I2S_MAX_FREQ_KHZ    96
+#ifndef I2S_MAX_FREQ_KHZ
+#define I2S_MAX_FREQ_KHZ    384
+#endif
+#ifndef I2S_QUEUE_LEN
 #define I2S_QUEUE_LEN     10
+#endif
 #define I2S_QUEUE_MAX       (I2S_MAX_FREQ_KHZ * I2S_QUEUE_LEN)
 #define I2S_DEQUEUE_LEN     48
 
