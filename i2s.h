@@ -173,7 +173,7 @@ int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_
  * @param tx_length 転送データ長
  * @note Dual/EXDFモード時は、送信バッファBのデータが data_pin+1 に出力されます。
  */
-void i2s_dma_transfer_bloking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length);
+void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length);
 
 /**
  * @brief 現在のi2sサンプリングレート取得
