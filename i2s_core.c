@@ -93,14 +93,14 @@ static void set_sys_clock_gpin1(void){
     clock_configure_gpin(clk_sys, 22, 49152 * KHZ, 49152 * KHZ);
 }
 
-void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin){
+void i2s_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin){
     i2s_dout_pin = data_pin;
     i2s_clk_pin_base = clock_pin_base;
     i2s_mclk_pin = mclk_pin;
 }
 
 // ロージッターモードを使うときはuart,i2c,spi設定よりも先に呼び出す
-void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode){
+void i2s_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode){
     i2s_pio = pio;
     i2s_sm = pio_claim_unused_sm(pio, true);
     i2s_mclk_sm = pio_claim_unused_sm(pio, true);
@@ -121,7 +121,7 @@ I2S_MODE i2s_get_i2s_mode(void){
     return i2s_mode;
 }
 
-void i2s_init(void){
+void i2s_pio_init(void){
     pio_sm_config sm_config, sm_config_mclk;
     PIO pio = i2s_pio;
     uint data_pin = i2s_dout_pin;
@@ -160,7 +160,7 @@ void i2s_init(void){
     pio_sm_set_enabled(pio, i2s_sm, true);
 }
 
-void pt8211_init(void){
+void pt8211_pio_init(void){
     pio_sm_config sm_config;
     PIO pio = i2s_pio;
     uint sm = i2s_sm;
@@ -191,7 +191,7 @@ void pt8211_init(void){
     pio_sm_set_enabled(pio, sm, true);
 }
 
-void exdf_init(void){
+void exdf_pio_init(void){
     pio_sm_config sm_config;
     PIO pio = i2s_pio;
     uint data_pin = i2s_dout_pin;
@@ -236,7 +236,7 @@ void exdf_init(void){
     pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
 }
 
-void i2s_dual_init(void){
+void i2s_dual_pio_init(void){
     pio_sm_config sm_config, sm_config_mclk;
     PIO pio = i2s_pio;
     uint data_pin = i2s_dout_pin;
@@ -289,7 +289,7 @@ void i2s_dual_init(void){
     pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
 }
 
-void pt8211_dual_init(void){
+void pt8211_dual_pio_init(void){
     pio_sm_config sm_config;
     PIO pio = i2s_pio;
     uint sm = i2s_sm;
@@ -334,7 +334,7 @@ void pt8211_dual_init(void){
     pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
 }
 
-void i2s_slave_init(void){
+void i2s_slave_pio_init(void){
     pio_sm_config sm_config;
     PIO pio = i2s_pio;
     uint sm = i2s_sm;
@@ -362,32 +362,32 @@ void i2s_slave_init(void){
     pio_sm_set_enabled(pio, sm, true);
 }
 
-void i2s_mclk_init(uint32_t audio_clock){
+void i2s_init(uint32_t audio_clock){
     pio_sm_config sm_config, sm_config_mclk;
     PIO pio = i2s_pio;
     uint sm = i2s_sm;
 
     switch (i2s_mode){
         case MODE_I2S:
-            i2s_init();
+            i2s_pio_init();
             break;
         case MODE_PT8211:
-            pt8211_init();
+            pt8211_pio_init();
             break;
         case MODE_EXDF:
-            exdf_init();
+            exdf_pio_init();
             break;
         case MODE_I2S_DUAL:
-            i2s_dual_init();
+            i2s_dual_pio_init();
             break;
         case MODE_PT8211_DUAL:
-            pt8211_dual_init();
+            pt8211_dual_pio_init();
             break;
         case MODE_I2S_SLAVE:
-            i2s_slave_init();
+            i2s_slave_pio_init();
             break;
     }
-    i2s_mclk_change_clock(audio_clock);
+    i2s_change_clock(audio_clock);
 
     // dma init
     i2s_dma_chan_a = dma_claim_unused_channel(true);
@@ -427,7 +427,7 @@ void i2s_mclk_init(uint32_t audio_clock){
     }
 }
 
-void i2s_mclk_change_clock(uint32_t audio_clock){
+void i2s_change_clock(uint32_t audio_clock){
     // 周波数変更
     atomic_store(&i2s_freq, audio_clock);
     

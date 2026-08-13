@@ -55,8 +55,11 @@ typedef enum {
  * @note BCLK = clock_pin_base + 1
  * @note MODE_EXDFの場合: DOUTL=data_pin, DOUTR=data_pin+1, WCK=clock_pin_base, BCK=clock_pin_base+1, MCLK=clock_pin_base+2
  */
-void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin);
+void i2s_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin);
 
+static inline void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin){
+    i2s_set_pin(data_pin, clock_pin_base,  mclk_pin);
+}
 /**
  * @brief I2Sドライバの設定
  * 
@@ -66,7 +69,11 @@ void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin);
  * @note Lowジッタモードを使用する場合は、UART/I2C/SPI設定よりも先に呼び出す必要があります。
  * @note MODE_PT8211はBCLK=32fs (LSB Justified 16bit), MCLKなしとなります。
  */
-void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode);
+void i2s_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode);
+
+static inline void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode){
+    i2s_set_config(pio, clock_mode, mode);
+}
 
 /**
  * @brief 現在のI2Sモードを取得
@@ -81,14 +88,23 @@ I2S_MODE i2s_get_i2s_mode(void);
  * @param audio_clock サンプリングレート (Hz)
  * @note 呼び出し直後からI2S出力が開始されます。
  */
-void i2s_mclk_init(uint32_t audio_clock);
+void i2s_init(uint32_t audio_clock);
+
+static inline void i2s_mclk_init(uint32_t audio_clock){
+    i2s_init(audio_clock);
+}
+
 
 /**
  * @brief サンプリングレートの変更
  * 
  * @param audio_clock 新しいサンプリングレート (Hz)
  */
-void i2s_mclk_change_clock(uint32_t audio_clock);
+void i2s_change_clock(uint32_t audio_clock);
+
+static inline void i2s_mclk_change_clock(uint32_t audio_clock){
+    i2s_change_clock(audio_clock);
+}
 
 /**
  * @brief 現在のi2sサンプリングレート取得
