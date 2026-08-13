@@ -23,11 +23,37 @@
  *
  */
 
-#ifndef I2S_H
-#define I2S_H
+#ifndef I2S_UAC_H
+#define I2S_UAC_H
+#include "pico/stdlib.h"
 
-#include "i2s_core.h"
-#include "i2s_queue.h"
-#include "i2s_uac.h"
+/**
+ * @brief USBオーディオデータ(8bitパック)を32bit整数へ変換
+ * 
+ * @param in 入力データポインタ (USBパケット)
+ * @param sample 入力データ長 (バイト数)
+ * @param resolution ビット深度 (16, 24, 32)
+ * @param buf_l Lch出力バッファ
+ * @param buf_r Rch出力バッファ
+ * @return 変換後のデータ長 (サンプル数)
+ */
+int i2s_unpack_uacdata(uint8_t* in, int sample, uint8_t resolution, int32_t *buf_l, int32_t *buf_r);
+
+/**
+ * @brief 出力音量の設定
+ * 
+ * @param v 音量値 (単位: 1/256 dB)
+ * @param ch 対象チャンネル (0:Master, 1:L, 2:R)
+ */
+void i2s_volume_change(int16_t v, int8_t ch);
+
+/**
+ * @brief 音量調整処理の適用
+ * 
+ * @param buf_l Lchデータバッファ (In/Out)
+ * @param buf_r Rchデータバッファ (In/Out)
+ * @param length データ長 (サンプル数)
+ */
+void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length);
 
 #endif

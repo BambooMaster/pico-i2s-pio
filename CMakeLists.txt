@@ -9,7 +9,12 @@ if (NOT DEFINED I2S_QUEUE_LEN)
     set(I2S_QUEUE_LEN 10)
 endif()
  
-add_library(pico-i2s-pio STATIC i2s.c)
+add_library(pico-i2s-pio STATIC
+        i2s_core.c
+        i2s_queue.c
+        i2s_uac.c
+        )
+
 pico_generate_pio_header(pico-i2s-pio ${CMAKE_CURRENT_LIST_DIR}/i2s.pio)
 target_link_libraries(pico-i2s-pio
         pico_stdlib
