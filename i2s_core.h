@@ -123,4 +123,17 @@ uint32_t i2s_get_freq(void);
  */
 void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length);
 
+/**
+ * @brief L/RデータをPIO送信形式に変換
+ * 
+ * @param buf_l Lch入力データ
+ * @param buf_r Rch入力データ
+ * @param length データ長 (サンプル数)
+ * @param tx_buf_a 送信バッファA
+ * @param tx_buf_b 送信バッファB
+ * @return 生成された送信データの長さ
+ * @note Dual/EXDFモード時は、送信バッファBのデータが data_pin+1 に出力されます。
+ */
+int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b);
+
 #endif

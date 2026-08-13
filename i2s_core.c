@@ -540,3 +540,49 @@ void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_leng
         dma_channel_transfer_from_buffer_now(i2s_dma_chan_a, tx_buf_a, tx_length);
     }
 }
+
+int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b){
+    I2S_MODE i2s_mode = i2s_get_i2s_mode();
+    if (i2s_mode == MODE_EXDF){
+        for (int i = 0; i < length; i++){
+            tx_buf_a[i] = buf_l[i];
+            tx_buf_b[i] = buf_r[i];
+        }
+    }
+    else if (i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_I2S_DUAL){
+        // 並び替え
+        for (int i = 0, j = 0; i < length; i++) {
+            // 反転
+            int32_t d_r, d_l;
+            if (buf_l[i] == INT32_MIN){
+                d_l = INT32_MAX;
+            }
+            else{
+                d_l = -buf_l[i];
+            }
+            if (buf_r[i] == INT32_MIN){
+                d_r = INT32_MAX;
+            }
+            else{
+                d_r = -buf_r[i];
+            }
+
+            tx_buf_a[j] = buf_l[i];
+            tx_buf_b[j] = buf_r[i];
+            j++;
+            tx_buf_a[j] = d_l;
+            tx_buf_b[j] = d_r;
+            j++;
+        }
+        length *= 2;
+    }
+    else {
+        for (int i = 0, j = 0; i < length; i++){
+            tx_buf_a[j++] = buf_l[i];
+            tx_buf_a[j++] = buf_r[i];
+        }
+        length *= 2;
+    }
+
+    return length;
+}
