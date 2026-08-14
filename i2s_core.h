@@ -85,25 +85,25 @@ I2S_MODE i2s_get_i2s_mode(void);
 /**
  * @brief I2Sドライバの初期化と開始
  * 
- * @param audio_clock サンプリングレート (Hz)
+ * @param sample_rate_hz サンプリングレート (Hz)
  * @note 呼び出し直後からI2S出力が開始されます。
  */
-void i2s_init(uint32_t audio_clock);
+void i2s_init(uint32_t sample_rate_hz);
 
-static inline void i2s_mclk_init(uint32_t audio_clock){
-    i2s_init(audio_clock);
+static inline void i2s_mclk_init(uint32_t sample_rate_hz){
+    i2s_init(sample_rate_hz);
 }
 
 
 /**
  * @brief サンプリングレートの変更
  * 
- * @param audio_clock 新しいサンプリングレート (Hz)
+ * @param sample_rate_hz 新しいサンプリングレート (Hz)
  */
-void i2s_change_clock(uint32_t audio_clock);
+void i2s_change_clock(uint32_t sample_rate_hz);
 
-static inline void i2s_mclk_change_clock(uint32_t audio_clock){
-    i2s_change_clock(audio_clock);
+static inline void i2s_mclk_change_clock(uint32_t sample_rate_hz){
+    i2s_change_clock(sample_rate_hz);
 }
 
 /**
@@ -111,7 +111,11 @@ static inline void i2s_mclk_change_clock(uint32_t audio_clock){
  * 
  * @return i2sサンプリングレート
  */
-uint32_t i2s_get_freq(void);
+uint32_t i2s_get_sample_rate_hz(void);
+
+static inline uint32_t i2s_get_freq(void){
+    i2s_get_sample_rate_hz();
+}
 
 /**
  * @brief DMA転送の開始 (ブロッキング待機含む)

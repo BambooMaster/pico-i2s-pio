@@ -45,7 +45,7 @@ static int i2s_dma_chan_a, i2s_dma_chan_b;
 static CLOCK_MODE i2s_clock_mode = CLOCK_MODE_DEFAULT;
 static I2S_MODE i2s_mode        = MODE_I2S;
 
-static atomic_uint i2s_freq = 44100;
+static atomic_uint i2s_sample_rate_hz = 44100;
 
 /**
  * @brief システムクロックを180.75MHzに設定する
@@ -362,7 +362,7 @@ void i2s_slave_pio_init(void){
     pio_sm_set_enabled(pio, sm, true);
 }
 
-void i2s_init(uint32_t audio_clock){
+void i2s_init(uint32_t sample_rate_hz){
     pio_sm_config sm_config, sm_config_mclk;
     PIO pio = i2s_pio;
     uint sm = i2s_sm;
@@ -387,7 +387,7 @@ void i2s_init(uint32_t audio_clock){
             i2s_slave_pio_init();
             break;
     }
-    i2s_change_clock(audio_clock);
+    i2s_change_clock(sample_rate_hz);
 
     // dma init
     i2s_dma_chan_a = dma_claim_unused_channel(true);
@@ -427,12 +427,12 @@ void i2s_init(uint32_t audio_clock){
     }
 }
 
-void i2s_change_clock(uint32_t audio_clock){
+void i2s_change_clock(uint32_t sample_rate_hz){
     // 周波数変更
-    atomic_store(&i2s_freq, audio_clock);
+    atomic_store(&i2s_sample_rate_hz, sample_rate_hz);
     
     if (i2s_mode == MODE_I2S_SLAVE){
-        if (audio_clock % 48000 == 0){
+        if (sample_rate_hz % 48000 == 0){
             // ここで外部のクロック変更
             // picoのGPIOクロック出力だとクロック間の同期ができない
         }
@@ -443,7 +443,7 @@ void i2s_change_clock(uint32_t audio_clock){
     }
     else if (i2s_clock_mode == CLOCK_MODE_DEFAULT){
         float div;
-        div = (float)clock_get_hz(clk_sys) / (float)(audio_clock * 128);
+        div = (float)clock_get_hz(clk_sys) / (float)(sample_rate_hz * 128);
 
         if (i2s_mode == MODE_I2S_DUAL || i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_EXDF){
             pio_set_sm_mask_enabled(i2s_pio, i2s_sm_mask, false);
@@ -457,7 +457,7 @@ void i2s_change_clock(uint32_t audio_clock){
 
         // mclk
         if (i2s_mode == MODE_I2S || i2s_mode == MODE_I2S_DUAL){
-            if (audio_clock % 48000 == 0){
+            if (sample_rate_hz % 48000 == 0){
                 div = (float)clock_get_hz(clk_sys) / (49.152f * (float)MHZ);
                 pio_sm_set_clkdiv(i2s_pio, i2s_mclk_sm, div);
             }
@@ -482,15 +482,15 @@ void i2s_change_clock(uint32_t audio_clock){
 
         // pio周波数変更
         uint dev;
-        if (audio_clock % 48000 == 0){
+        if (sample_rate_hz % 48000 == 0){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
                     set_sys_clock_196500khz();
-                    dev = 8 * 192000 / audio_clock;
+                    dev = 8 * 192000 / sample_rate_hz;
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     set_sys_clock_gpin1();
-                    dev = 2 * 192000 / audio_clock;
+                    dev = 2 * 192000 / sample_rate_hz;
                     break;
             }
         }
@@ -498,11 +498,11 @@ void i2s_change_clock(uint32_t audio_clock){
             switch (i2s_clock_mode){
                 case CLOCK_MODE_LOW_JITTER:
                     set_sys_clock_180750khz();
-                    dev = 8 * 176400 / audio_clock;
+                    dev = 8 * 176400 / sample_rate_hz;
                     break;
                 case CLOCK_MODE_EXTERNAL:
                     set_sys_clock_gpin0();
-                    dev = 2 * 176400 / audio_clock;
+                    dev = 2 * 176400 / sample_rate_hz;
                     break;
             }
         }
@@ -519,8 +519,8 @@ void i2s_change_clock(uint32_t audio_clock){
     }
 }
 
-uint32_t i2s_get_freq(void){
-    return atomic_load(&i2s_freq);
+uint32_t i2s_get_sample_rate_hz(void){
+    return atomic_load(&i2s_sample_rate_hz);
 }
 
 void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length){
