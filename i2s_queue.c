@@ -25,20 +25,29 @@
 
 #include "i2s_queue.h"
 #include <stdatomic.h>
+#include <string.h>
 #include "pico/stdlib.h"
 
 #include "i2s_core.h"
-#include "i2s_queue.h"
 
 static atomic_int queue_write = 0;
 static atomic_int queue_read = 0;
-static volatile int32_t queue_l[I2S_QUEUE_MAX];
-static volatile int32_t queue_r[I2S_QUEUE_MAX];
+static int32_t queue_l[I2S_QUEUE_MAX];
+static int32_t queue_r[I2S_QUEUE_MAX];
 
-bool i2s_enqueue(int32_t *buf_l, int32_t *buf_r, int length){
-    if ((I2S_QUEUE_MAX - 1 - i2s_get_queue_length()) < length) return false;
+bool i2s_enqueue(const int32_t *buf_l, const int32_t *buf_r, int length){
+    if (length <= 0 || length > I2S_QUEUE_MAX - 1) return false;
 
-    int w = atomic_load(&queue_write);
+    int queue_free_length;
+    int w = atomic_load_explicit(&queue_write, memory_order_relaxed);
+    int r = atomic_load_explicit(&queue_read,  memory_order_acquire);
+    if (w >= r){
+        queue_free_length = I2S_QUEUE_MAX - 1 - w + r;
+    }
+    else{
+        queue_free_length = r - w - 1;
+    }
+    if (queue_free_length < length) return false;
 
     int chunk1, chunk2;
     if (w + length >= I2S_QUEUE_MAX){
@@ -50,28 +59,34 @@ bool i2s_enqueue(int32_t *buf_l, int32_t *buf_r, int length){
         chunk2 = 0;
     }
 
-    for (int i = 0; i < chunk1; i++){
-        queue_l[w + i] = buf_l[i];
-        queue_r[w + i] = buf_r[i];
-    }
-    for (int i = 0; i < chunk2; i++){
-        queue_l[i] = buf_l[chunk1 + i];
-        queue_r[i] = buf_r[chunk1 + i];
+    memcpy((void*)&queue_l[w], buf_l, chunk1 * sizeof(int32_t));
+    memcpy((void*)&queue_r[w], buf_r, chunk1 * sizeof(int32_t));
+    if (chunk2 > 0){
+        memcpy((void*)&queue_l[0], buf_l + chunk1, chunk2 * sizeof(int32_t));
+        memcpy((void*)&queue_r[0], buf_r + chunk1, chunk2 * sizeof(int32_t));
     }
 
     w += length;
     if (w >= I2S_QUEUE_MAX) w -= I2S_QUEUE_MAX;
-    atomic_thread_fence(memory_order_release);
-    atomic_store(&queue_write, w);
+    atomic_store_explicit(&queue_write, w, memory_order_release);
     return true;
 }
 
 int i2s_dequeue(int32_t *buf_l, int32_t *buf_r, int length){
-    int read_length = i2s_get_queue_length();
+    if (length <= 0) return 0;
+
+    int read_length;
+    int r = atomic_load_explicit(&queue_read,  memory_order_relaxed);
+    int w = atomic_load_explicit(&queue_write, memory_order_acquire);
+    if (w >= r){
+        read_length = w - r;
+    }
+    else{
+        read_length = I2S_QUEUE_MAX - r + w;
+    }
     if (read_length <= 0) return 0;
 
     if (read_length > length) read_length = length;
-    int r = atomic_load(&queue_read);
 
     int chunk1, chunk2;
     if (r + read_length >= I2S_QUEUE_MAX){
@@ -83,25 +98,22 @@ int i2s_dequeue(int32_t *buf_l, int32_t *buf_r, int length){
         chunk2 = 0;
     }
 
-    for (int i = 0; i < chunk1; i++){
-        buf_l[i] = queue_l[r + i];
-        buf_r[i] = queue_r[r + i];
-    }
-    for (int i = 0; i < chunk2; i++){
-        buf_l[chunk1 + i] = queue_l[i];
-        buf_r[chunk1 + i] = queue_r[i];
+    memcpy(buf_l, (void*)&queue_l[r], chunk1 * sizeof(int32_t));
+    memcpy(buf_r, (void*)&queue_r[r], chunk1 * sizeof(int32_t));
+    if (chunk2 > 0){
+        memcpy(buf_l + chunk1, (void*)&queue_l[0], chunk2 * sizeof(int32_t));
+        memcpy(buf_r + chunk1, (void*)&queue_r[0], chunk2 * sizeof(int32_t));
     }
 
     r += read_length;
     if (r >= I2S_QUEUE_MAX) r -= I2S_QUEUE_MAX;
-    atomic_thread_fence(memory_order_release);
-    atomic_store(&queue_read, r);
+    atomic_store_explicit(&queue_read, r, memory_order_release);
     return read_length;
 }
 
 int i2s_get_queue_length(void){
-    int w = atomic_load(&queue_write);
-    int r = atomic_load(&queue_read);
+    int w = atomic_load_explicit(&queue_write, memory_order_acquire);
+    int r = atomic_load_explicit(&queue_read,  memory_order_acquire);
 
     if (w >= r) return w - r;
     return I2S_QUEUE_MAX - r + w;

@@ -42,7 +42,7 @@
  * @return true 成功
  * @return false 失敗 (キューが満杯)
  */
-bool i2s_enqueue(int32_t *buf_l, int32_t *buf_r, int length);
+bool i2s_enqueue(const int32_t *buf_l, const int32_t *buf_r, int length);
 
 /**
  * @brief 送信キューからのデータ取り出し
