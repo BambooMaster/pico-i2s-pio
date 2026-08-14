@@ -1,6 +1,12 @@
 # pico-i2s-pio
 Raspberry Pi Picoのpioを使ってMCLK対応のi2sを出力するライブラリです。RP2040/RP2350のシステムクロックをMCLKの整数倍に設定し、pioのフラクショナル分周を使わないlowジッタモードを搭載しています。また、PCM5102AやPT8211のような差動出力非対応のDACをデュアルモノで動作させる機能を搭載しています。i2sのslaveモードにも対応しました。
 
+## 使用例
+- [pico_usb_i2s_speaker](https://github.com/BambooMaster/pico_usb_i2s_speaker.git)  
+RP2040/RP2350とtinyusbを使用した24bit96kHzのUSB DDCです。
+- [usb_sound_card_hires](https://github.com/BambooMaster/usb_sound_card_hires.git)  
+RP2040/RP2350を使用した24bit96kHzのUSB DDCです。pico-playgroundをベースにハイレゾ化・フィードバック実装をしました。
+
 ## 対応フォーマット
 16,24,32bit 44.1kHz～384kHz  
 送信キューの長さは3840サンプル（384kHz 10ms）です。
