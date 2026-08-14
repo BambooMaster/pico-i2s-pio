@@ -527,6 +527,7 @@ void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_leng
     if (i2s_mode == MODE_I2S_DUAL || i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_EXDF){
         uint32_t mask = (1u << i2s_dma_chan_a) | (1u << i2s_dma_chan_b);
         while (dma_channel_is_busy(i2s_dma_chan_a) || dma_channel_is_busy(i2s_dma_chan_b)) tight_loop_contents();
+        __compiler_memory_barrier();
 
         dma_channel_set_transfer_count(i2s_dma_chan_a, tx_length, false);
         dma_channel_set_read_addr(i2s_dma_chan_a, tx_buf_a, false);
