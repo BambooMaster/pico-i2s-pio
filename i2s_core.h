@@ -114,7 +114,7 @@ static inline void i2s_mclk_change_clock(uint32_t sample_rate_hz){
 uint32_t i2s_get_sample_rate_hz(void);
 
 static inline uint32_t i2s_get_freq(void){
-    i2s_get_sample_rate_hz();
+    return i2s_get_sample_rate_hz();
 }
 
 /**
