@@ -257,6 +257,24 @@ void i2s_slave_pio_init(void){
     pio_sm_set_enabled(i2s_pio, i2s_sm, true);
 }
 
+void i2s_dma_setup(int dma_chan, PIO pio, uint sm){
+    dma_channel_config conf = dma_channel_get_default_config(dma_chan);
+    
+    channel_config_set_read_increment(&conf, true);
+    channel_config_set_write_increment(&conf, false);
+    channel_config_set_transfer_data_size(&conf, DMA_SIZE_32);
+    channel_config_set_dreq(&conf, pio_get_dreq(pio, sm, true));
+    
+    dma_channel_configure(
+        dma_chan,
+        &conf,
+        &pio->txf[sm],
+        NULL,
+        0,
+        false
+    );
+}
+
 void i2s_init(uint32_t sample_rate_hz){
     switch (i2s_mode){
         case MODE_I2S:
@@ -284,39 +302,11 @@ void i2s_init(uint32_t sample_rate_hz){
 
     // dma init
     i2s_dma_chan_a = dma_claim_unused_channel(true);
-    dma_channel_config conf = dma_channel_get_default_config(i2s_dma_chan_a);
-    
-    channel_config_set_read_increment(&conf, true);
-    channel_config_set_write_increment(&conf, false);
-    channel_config_set_transfer_data_size(&conf, DMA_SIZE_32);
-    channel_config_set_dreq(&conf, pio_get_dreq(i2s_pio, i2s_sm, true));
-    
-    dma_channel_configure(
-        i2s_dma_chan_a,
-        &conf,
-        &i2s_pio->txf[i2s_sm],
-        NULL,
-        0,
-        false
-    );
+    i2s_dma_setup(i2s_dma_chan_a, i2s_pio, i2s_sm);
 
     if (i2s_mode == MODE_I2S_DUAL || i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_EXDF){
         i2s_dma_chan_b = dma_claim_unused_channel(true);
-        conf = dma_channel_get_default_config(i2s_dma_chan_b);
-        
-        channel_config_set_read_increment(&conf, true);
-        channel_config_set_write_increment(&conf, false);
-        channel_config_set_transfer_data_size(&conf, DMA_SIZE_32);
-        channel_config_set_dreq(&conf, pio_get_dreq(i2s_pio, i2s_dual_sm, true));
-        
-        dma_channel_configure(
-            i2s_dma_chan_b,
-            &conf,
-            &i2s_pio->txf[i2s_dual_sm],
-            NULL,
-            0,
-            false
-        );
+        i2s_dma_setup(i2s_dma_chan_b, i2s_pio, i2s_dual_sm);
     }
 }
 
