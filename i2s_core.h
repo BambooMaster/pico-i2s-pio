@@ -125,7 +125,7 @@ static inline uint32_t i2s_get_freq(void){
  * @param tx_length 転送データ長
  * @note Dual/EXDFモード時は、送信バッファBのデータが data_pin+1 に出力されます。
  */
-void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length);
+void i2s_dma_transfer_blocking(const int32_t *tx_buf_a, const int32_t *tx_buf_b, int tx_length);
 
 /**
  * @brief L/RデータをPIO送信形式に変換
@@ -138,6 +138,6 @@ void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_leng
  * @return 生成された送信データの長さ
  * @note Dual/EXDFモード時は、送信バッファBのデータが data_pin+1 に出力されます。
  */
-int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b);
+int i2s_format_piodata(const int32_t *buf_l, const int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b);
 
 #endif

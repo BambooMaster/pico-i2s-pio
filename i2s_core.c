@@ -406,7 +406,7 @@ uint32_t i2s_get_sample_rate_hz(void){
     return atomic_load(&i2s_sample_rate_hz);
 }
 
-void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_length){
+void i2s_dma_transfer_blocking(const int32_t *tx_buf_a, const int32_t *tx_buf_b, int tx_length){
     if (i2s_mode == MODE_I2S_DUAL || i2s_mode == MODE_PT8211_DUAL || i2s_mode == MODE_EXDF){
         uint32_t mask = (1u << i2s_dma_chan_a) | (1u << i2s_dma_chan_b);
         while (dma_channel_is_busy(i2s_dma_chan_a) || dma_channel_is_busy(i2s_dma_chan_b)) tight_loop_contents();
@@ -425,7 +425,7 @@ void i2s_dma_transfer_blocking(int32_t *tx_buf_a, int32_t *tx_buf_b, int tx_leng
     }
 }
 
-int i2s_format_piodata(int32_t *buf_l, int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b){
+int i2s_format_piodata(const int32_t *buf_l, const int32_t *buf_r, int length, uint32_t *tx_buf_a, uint32_t *tx_buf_b){
     I2S_MODE i2s_mode = i2s_get_i2s_mode();
     if (i2s_mode == MODE_EXDF){
         for (int i = 0; i < length; i++){
