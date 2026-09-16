@@ -121,217 +121,116 @@ I2S_MODE i2s_get_i2s_mode(void){
     return i2s_mode;
 }
 
-void i2s_pio_init(void){
-    pio_sm_config sm_config, sm_config_mclk;
-    PIO pio = i2s_pio;
-    uint data_pin = i2s_dout_pin;
-    uint clock_pin_base = i2s_clk_pin_base;
-    uint offset, offset_mclk;
-    uint pin_mask;
+void i2s_sm_setup(PIO pio, uint sm, uint offset, pio_sm_config sm_config, uint data_pin, uint clock_pin_base, uint clock_pin_count){
+    pio_gpio_init(pio, i2s_dout_pin);
+    for (int i = 0; i < clock_pin_count; i++){
+        pio_gpio_init(pio, clock_pin_base + i);
+    }
 
-    // i2s pin init
-    pio_gpio_init(pio, data_pin);
-    pio_gpio_init(pio, clock_pin_base);
-    pio_gpio_init(pio, clock_pin_base + 1);
-    pio_gpio_init(pio, i2s_mclk_pin);
-
-    // mclk init
-    pio_sm_set_consecutive_pindirs(pio, i2s_mclk_sm, i2s_mclk_pin, 1, true);
-    offset_mclk = pio_add_program(pio, &i2s_mclk_program);
-    sm_config_mclk = i2s_mclk_program_get_default_config(offset_mclk);
-    sm_config_set_set_pins(&sm_config_mclk, i2s_mclk_pin, 1);
-    pio_sm_init(pio, i2s_mclk_sm, offset_mclk, &sm_config_mclk);
-    pio_sm_set_enabled(pio, i2s_mclk_sm, true);
-
-    // i2s data init
-    offset = pio_add_program(pio, &i2s_data_program);
-    sm_config = i2s_data_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin, 1);
-    sm_config_set_sideset_pins(&sm_config, clock_pin_base);
-    sm_config_set_out_shift(&sm_config, false, false, 32);
-    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-
-    pio_sm_init(pio, i2s_sm, offset, &sm_config);
-    pin_mask = (1u << data_pin) | (3u << clock_pin_base);
-    pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
-    pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, i2s_sm, 0);
-    pio_sm_clear_fifos(pio, i2s_sm);
-    pio_sm_set_enabled(pio, i2s_sm, true);
-}
-
-void pt8211_pio_init(void){
-    pio_sm_config sm_config;
-    PIO pio = i2s_pio;
-    uint sm = i2s_sm;
-    uint data_pin = i2s_dout_pin;
-    uint clock_pin_base = i2s_clk_pin_base;
-    uint offset;
-    uint pin_mask;
-
-    // pt8211 pin init
-    pio_gpio_init(pio, data_pin);
-    pio_gpio_init(pio, clock_pin_base);
-    pio_gpio_init(pio, clock_pin_base + 1);
-
-    // pt8211 data init
-    offset = pio_add_program(pio, &i2s_pt8211_program);
-    sm_config = i2s_pt8211_program_get_default_config(offset);
     sm_config_set_out_pins(&sm_config, data_pin, 1);
     sm_config_set_sideset_pins(&sm_config, clock_pin_base);
     sm_config_set_out_shift(&sm_config, false, false, 32);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
 
     pio_sm_init(pio, sm, offset, &sm_config);
-    pin_mask = (1u << data_pin) | (3u << clock_pin_base);
+    uint pin_mask = 1u << data_pin;
+    if (clock_pin_count > 0) pin_mask |= ((1u << clock_pin_count) - 1u) << clock_pin_base;
+    pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
     pio_sm_set_pindirs_with_mask(pio, sm, pin_mask, pin_mask);
     pio_sm_exec(pio, sm, pio_encode_jmp(offset));
     pio_sm_set_pins(pio, sm, 0);
     pio_sm_clear_fifos(pio, sm);
-    pio_sm_set_enabled(pio, sm, true);
 }
 
-void exdf_pio_init(void){
-    pio_sm_config sm_config;
+void mclk_pio_init(void){
+    pio_sm_config sm_config_mclk;
     PIO pio = i2s_pio;
-    uint data_pin = i2s_dout_pin;
-    uint clock_pin_base = i2s_clk_pin_base;
-    uint offset;
-    uint pin_mask;
-
-    // exdf pin init
-    pio_gpio_init(pio, data_pin);
-    pio_gpio_init(pio, data_pin + 1);
-    pio_gpio_init(pio, clock_pin_base);
-    pio_gpio_init(pio, clock_pin_base + 1);
-    pio_gpio_init(pio, clock_pin_base + 2);
-
-    // exdf_a init
-    offset = pio_add_program(pio, &i2s_exdf_a_program);
-    sm_config = i2s_exdf_a_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin, 1);
-    sm_config_set_sideset_pins(&sm_config, clock_pin_base);
-    sm_config_set_out_shift(&sm_config, false, false, 32);
-    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-    pio_sm_init(pio, i2s_sm, offset, &sm_config);
-    pin_mask = (1u << data_pin) | (7u << clock_pin_base);
-    pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
-    pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, i2s_sm, 0);
-    pio_sm_clear_fifos(pio, i2s_sm);
-
-    // exdf_b init
-    pio_sm_set_consecutive_pindirs(pio, i2s_dual_sm, data_pin + 1, 1, true);
-    offset = pio_add_program(pio, &i2s_exdf_b_program);
-    sm_config = i2s_exdf_b_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin + 1, 1);
-    sm_config_set_out_shift(&sm_config, false, false, 32);
-    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-    pio_sm_init(pio, i2s_dual_sm, offset, &sm_config);
-    pio_sm_exec(pio, i2s_dual_sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, i2s_dual_sm, 0);
-    pio_sm_clear_fifos(pio, i2s_dual_sm);
-
-    i2s_sm_mask = (1u << i2s_sm) | (1u << i2s_dual_sm);
-    pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
-}
-
-void i2s_dual_pio_init(void){
-    pio_sm_config sm_config, sm_config_mclk;
-    PIO pio = i2s_pio;
-    uint data_pin = i2s_dout_pin;
-    uint clock_pin_base = i2s_clk_pin_base;
-    uint offset, offset_mclk;
-    uint pin_mask;
-
-    // i2s dual pin init
-    pio_gpio_init(pio, data_pin);
-    pio_gpio_init(pio, data_pin + 1);
-    pio_gpio_init(pio, clock_pin_base);
-    pio_gpio_init(pio, clock_pin_base + 1);
-    pio_gpio_init(pio, i2s_mclk_pin);
+    uint offset_mclk;
 
     // mclk init
+    pio_gpio_init(i2s_pio, i2s_mclk_pin);
     pio_sm_set_consecutive_pindirs(pio, i2s_mclk_sm, i2s_mclk_pin, 1, true);
     offset_mclk = pio_add_program(pio, &i2s_mclk_program);
     sm_config_mclk = i2s_mclk_program_get_default_config(offset_mclk);
     sm_config_set_set_pins(&sm_config_mclk, i2s_mclk_pin, 1);
     pio_sm_init(pio, i2s_mclk_sm, offset_mclk, &sm_config_mclk);
     pio_sm_set_enabled(pio, i2s_mclk_sm, true);
+}
+
+void i2s_pio_init(void){
+    pio_sm_config sm_config;
+    uint offset;
 
     // i2s data init
-    offset = pio_add_program(pio, &i2s_data_program);
+    offset = pio_add_program(i2s_pio, &i2s_data_program);
     sm_config = i2s_data_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin, 1);
-    sm_config_set_sideset_pins(&sm_config, clock_pin_base);
-    sm_config_set_out_shift(&sm_config, false, false, 32);
-    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-    pio_sm_init(pio, i2s_sm, offset, &sm_config);
-    pin_mask = (1u << data_pin) | (3u << clock_pin_base);
-    pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
-    pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, i2s_sm, 0);
-    pio_sm_clear_fifos(pio, i2s_sm);
+    i2s_sm_setup(i2s_pio, i2s_sm, offset, sm_config, i2s_dout_pin, i2s_clk_pin_base, 2);
+    pio_sm_set_enabled(i2s_pio, i2s_sm, true);
+}
 
-    // i2s dual init
-    pio_sm_set_consecutive_pindirs(pio, i2s_dual_sm, data_pin + 1, 1, true);
-    offset = pio_add_program(pio, &i2s_data_dual_program);
-    sm_config = i2s_data_dual_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin + 1, 1);
-    sm_config_set_out_shift(&sm_config, false, false, 32);
-    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-    pio_sm_init(pio, i2s_dual_sm, offset, &sm_config);
-    pio_sm_exec(pio, i2s_dual_sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, i2s_dual_sm, 0);
-    pio_sm_clear_fifos(pio, i2s_dual_sm);
+void pt8211_pio_init(void){
+    pio_sm_config sm_config;
+    uint offset;
+
+    // pt8211 data init
+    offset = pio_add_program(i2s_pio, &i2s_pt8211_program);
+    sm_config = i2s_pt8211_program_get_default_config(offset);
+    i2s_sm_setup(i2s_pio, i2s_sm, offset, sm_config, i2s_dout_pin, i2s_clk_pin_base, 2);
+    pio_sm_set_enabled(i2s_pio, i2s_sm, true);
+}
+
+void exdf_pio_init(void){
+    pio_sm_config sm_config;
+    uint offset;
+
+    // exdf_a init
+    offset = pio_add_program(i2s_pio, &i2s_exdf_a_program);
+    sm_config = i2s_exdf_a_program_get_default_config(offset);
+    i2s_sm_setup(i2s_pio, i2s_sm, offset, sm_config, i2s_dout_pin, i2s_clk_pin_base, 3);
+
+    // exdf_b init
+    offset = pio_add_program(i2s_pio, &i2s_exdf_b_program);
+    sm_config = i2s_exdf_b_program_get_default_config(offset);
+    i2s_sm_setup(i2s_pio, i2s_dual_sm, offset, sm_config, i2s_dout_pin + 1, i2s_clk_pin_base, 0);
 
     i2s_sm_mask = (1u << i2s_sm) | (1u << i2s_dual_sm);
-    pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
+    pio_enable_sm_mask_in_sync(i2s_pio, i2s_sm_mask);
+}
+
+void i2s_dual_pio_init(void){
+    pio_sm_config sm_config;
+    uint offset;
+
+    // i2s data init
+    offset = pio_add_program(i2s_pio, &i2s_data_program);
+    sm_config = i2s_data_program_get_default_config(offset);
+    i2s_sm_setup(i2s_pio, i2s_sm, offset, sm_config, i2s_dout_pin, i2s_clk_pin_base, 2);
+
+    // i2s dual init
+    offset = pio_add_program(i2s_pio, &i2s_data_dual_program);
+    sm_config = i2s_data_dual_program_get_default_config(offset);
+    i2s_sm_setup(i2s_pio, i2s_dual_sm, offset, sm_config, i2s_dout_pin + 1, i2s_clk_pin_base, 0);
+
+    i2s_sm_mask = (1u << i2s_sm) | (1u << i2s_dual_sm);
+    pio_enable_sm_mask_in_sync(i2s_pio, i2s_sm_mask);
 }
 
 void pt8211_dual_pio_init(void){
     pio_sm_config sm_config;
-    PIO pio = i2s_pio;
-    uint sm = i2s_sm;
-    uint data_pin = i2s_dout_pin;
-    uint clock_pin_base = i2s_clk_pin_base;
     uint offset;
-    uint pin_mask;
-
-    // pt8211 dual pin init
-    pio_gpio_init(pio, data_pin);
-    pio_gpio_init(pio, data_pin + 1);
-    pio_gpio_init(pio, clock_pin_base);
-    pio_gpio_init(pio, clock_pin_base + 1);
 
     // pt8211 data init
-    offset = pio_add_program(pio, &i2s_pt8211_program);
+    offset = pio_add_program(i2s_pio, &i2s_pt8211_program);
     sm_config = i2s_pt8211_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin, 1);
-    sm_config_set_sideset_pins(&sm_config, clock_pin_base);
-    sm_config_set_out_shift(&sm_config, false, false, 32);
-    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-    pio_sm_init(pio, i2s_sm, offset, &sm_config);
-    pin_mask = (1u << data_pin) | (3u << clock_pin_base);
-    pio_sm_set_pindirs_with_mask(pio, i2s_sm, pin_mask, pin_mask);
-    pio_sm_exec(pio, i2s_sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, i2s_sm, 0);
-    pio_sm_clear_fifos(pio, i2s_sm);
+    i2s_sm_setup(i2s_pio, i2s_sm, offset, sm_config, i2s_dout_pin, i2s_clk_pin_base, 2);
 
     // pt8211 dual init
-    pio_sm_set_consecutive_pindirs(pio, i2s_dual_sm, data_pin + 1, 1, true);
-    offset = pio_add_program(pio, &i2s_pt8211_dual_program);
+    offset = pio_add_program(i2s_pio, &i2s_pt8211_dual_program);
     sm_config = i2s_pt8211_dual_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin + 1, 1);
-    sm_config_set_out_shift(&sm_config, false, false, 32);
-    sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-    pio_sm_init(pio, i2s_dual_sm, offset, &sm_config);
-    pio_sm_exec(pio, i2s_dual_sm, pio_encode_jmp(offset));
-    pio_sm_set_pins(pio, i2s_dual_sm, 0);
-    pio_sm_clear_fifos(pio, i2s_dual_sm);
+    i2s_sm_setup(i2s_pio, i2s_dual_sm, offset, sm_config, i2s_dout_pin + 1, i2s_clk_pin_base, 0);
 
     i2s_sm_mask = (1u << i2s_sm) | (1u << i2s_dual_sm);
-    pio_enable_sm_mask_in_sync(pio, i2s_sm_mask);
+    pio_enable_sm_mask_in_sync(i2s_pio, i2s_sm_mask);
 }
 
 void i2s_slave_pio_init(void){
@@ -363,12 +262,9 @@ void i2s_slave_pio_init(void){
 }
 
 void i2s_init(uint32_t sample_rate_hz){
-    pio_sm_config sm_config, sm_config_mclk;
-    PIO pio = i2s_pio;
-    uint sm = i2s_sm;
-
     switch (i2s_mode){
         case MODE_I2S:
+            mclk_pio_init();
             i2s_pio_init();
             break;
         case MODE_PT8211:
@@ -378,6 +274,7 @@ void i2s_init(uint32_t sample_rate_hz){
             exdf_pio_init();
             break;
         case MODE_I2S_DUAL:
+            mclk_pio_init();
             i2s_dual_pio_init();
             break;
         case MODE_PT8211_DUAL:
@@ -396,7 +293,7 @@ void i2s_init(uint32_t sample_rate_hz){
     channel_config_set_read_increment(&conf, true);
     channel_config_set_write_increment(&conf, false);
     channel_config_set_transfer_data_size(&conf, DMA_SIZE_32);
-    channel_config_set_dreq(&conf, pio_get_dreq(pio, i2s_sm, true));
+    channel_config_set_dreq(&conf, pio_get_dreq(i2s_pio, i2s_sm, true));
     
     dma_channel_configure(
         i2s_dma_chan_a,
@@ -414,7 +311,7 @@ void i2s_init(uint32_t sample_rate_hz){
         channel_config_set_read_increment(&conf, true);
         channel_config_set_write_increment(&conf, false);
         channel_config_set_transfer_data_size(&conf, DMA_SIZE_32);
-        channel_config_set_dreq(&conf, pio_get_dreq(pio, i2s_dual_sm, true));
+        channel_config_set_dreq(&conf, pio_get_dreq(i2s_pio, i2s_dual_sm, true));
         
         dma_channel_configure(
             i2s_dma_chan_b,
