@@ -235,30 +235,26 @@ void pt8211_dual_pio_init(void){
 
 void i2s_slave_pio_init(void){
     pio_sm_config sm_config;
-    PIO pio = i2s_pio;
-    uint sm = i2s_sm;
-    uint data_pin = i2s_dout_pin;
-    uint clock_pin_base = i2s_clk_pin_base;
     uint offset;
     uint pin_mask;
     
     // i2s slave pin init
-    pio_gpio_init(pio, data_pin);
-    pio_gpio_init(pio, clock_pin_base);
-    pio_gpio_init(pio, clock_pin_base + 1);
+    pio_gpio_init(i2s_pio, i2s_dout_pin);
+    pio_gpio_init(i2s_pio, i2s_clk_pin_base);
+    pio_gpio_init(i2s_pio, i2s_clk_pin_base + 1);
 
     // i2s slave data init
-    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, true);
-    pio_sm_set_consecutive_pindirs(pio, sm, clock_pin_base, 2, false);
+    pio_sm_set_consecutive_pindirs(i2s_pio, i2s_sm, i2s_dout_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(i2s_pio, i2s_sm, i2s_clk_pin_base, 2, false);
     
-    offset = pio_add_program(pio, &i2s_slave_program);
+    offset = pio_add_program(i2s_pio, &i2s_slave_program);
     sm_config = i2s_slave_program_get_default_config(offset);
-    sm_config_set_out_pins(&sm_config, data_pin, 1);
-    sm_config_set_in_pin_base(&sm_config, clock_pin_base);
+    sm_config_set_out_pins(&sm_config, i2s_dout_pin, 1);
+    sm_config_set_in_pin_base(&sm_config, i2s_clk_pin_base);
     sm_config_set_out_shift(&sm_config, false, false, 32);
     sm_config_set_fifo_join(&sm_config, PIO_FIFO_JOIN_TX);
-    pio_sm_init(pio, sm, offset, &sm_config);
-    pio_sm_set_enabled(pio, sm, true);
+    pio_sm_init(i2s_pio, i2s_sm, offset, &sm_config);
+    pio_sm_set_enabled(i2s_pio, i2s_sm, true);
 }
 
 void i2s_init(uint32_t sample_rate_hz){
