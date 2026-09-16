@@ -144,17 +144,16 @@ static void i2s_sm_setup(PIO pio, uint sm, uint offset, pio_sm_config sm_config,
 
 static void mclk_pio_init(void){
     pio_sm_config sm_config_mclk;
-    PIO pio = i2s_pio;
     uint offset_mclk;
 
     // mclk init
     pio_gpio_init(i2s_pio, i2s_mclk_pin);
-    pio_sm_set_consecutive_pindirs(pio, i2s_mclk_sm, i2s_mclk_pin, 1, true);
-    offset_mclk = pio_add_program(pio, &i2s_mclk_program);
+    pio_sm_set_consecutive_pindirs(i2s_pio, i2s_mclk_sm, i2s_mclk_pin, 1, true);
+    offset_mclk = pio_add_program(i2s_pio, &i2s_mclk_program);
     sm_config_mclk = i2s_mclk_program_get_default_config(offset_mclk);
     sm_config_set_set_pins(&sm_config_mclk, i2s_mclk_pin, 1);
-    pio_sm_init(pio, i2s_mclk_sm, offset_mclk, &sm_config_mclk);
-    pio_sm_set_enabled(pio, i2s_mclk_sm, true);
+    pio_sm_init(i2s_pio, i2s_mclk_sm, offset_mclk, &sm_config_mclk);
+    pio_sm_set_enabled(i2s_pio, i2s_mclk_sm, true);
 }
 
 static void i2s_pio_init(void){
