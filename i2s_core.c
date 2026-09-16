@@ -121,7 +121,7 @@ I2S_MODE i2s_get_i2s_mode(void){
     return i2s_mode;
 }
 
-void i2s_sm_setup(PIO pio, uint sm, uint offset, pio_sm_config sm_config, uint data_pin, uint clock_pin_base, uint clock_pin_count){
+static void i2s_sm_setup(PIO pio, uint sm, uint offset, pio_sm_config sm_config, uint data_pin, uint clock_pin_base, uint clock_pin_count){
     pio_gpio_init(pio, i2s_dout_pin);
     for (int i = 0; i < clock_pin_count; i++){
         pio_gpio_init(pio, clock_pin_base + i);
@@ -142,7 +142,7 @@ void i2s_sm_setup(PIO pio, uint sm, uint offset, pio_sm_config sm_config, uint d
     pio_sm_clear_fifos(pio, sm);
 }
 
-void mclk_pio_init(void){
+static void mclk_pio_init(void){
     pio_sm_config sm_config_mclk;
     PIO pio = i2s_pio;
     uint offset_mclk;
@@ -157,7 +157,7 @@ void mclk_pio_init(void){
     pio_sm_set_enabled(pio, i2s_mclk_sm, true);
 }
 
-void i2s_pio_init(void){
+static void i2s_pio_init(void){
     pio_sm_config sm_config;
     uint offset;
 
@@ -168,7 +168,7 @@ void i2s_pio_init(void){
     pio_sm_set_enabled(i2s_pio, i2s_sm, true);
 }
 
-void pt8211_pio_init(void){
+static void pt8211_pio_init(void){
     pio_sm_config sm_config;
     uint offset;
 
@@ -179,7 +179,7 @@ void pt8211_pio_init(void){
     pio_sm_set_enabled(i2s_pio, i2s_sm, true);
 }
 
-void exdf_pio_init(void){
+static void exdf_pio_init(void){
     pio_sm_config sm_config;
     uint offset;
 
@@ -197,7 +197,7 @@ void exdf_pio_init(void){
     pio_enable_sm_mask_in_sync(i2s_pio, i2s_sm_mask);
 }
 
-void i2s_dual_pio_init(void){
+static void i2s_dual_pio_init(void){
     pio_sm_config sm_config;
     uint offset;
 
@@ -215,7 +215,7 @@ void i2s_dual_pio_init(void){
     pio_enable_sm_mask_in_sync(i2s_pio, i2s_sm_mask);
 }
 
-void pt8211_dual_pio_init(void){
+static void pt8211_dual_pio_init(void){
     pio_sm_config sm_config;
     uint offset;
 
@@ -233,7 +233,7 @@ void pt8211_dual_pio_init(void){
     pio_enable_sm_mask_in_sync(i2s_pio, i2s_sm_mask);
 }
 
-void i2s_slave_pio_init(void){
+static void i2s_slave_pio_init(void){
     pio_sm_config sm_config;
     uint offset;
     uint pin_mask;
@@ -257,7 +257,7 @@ void i2s_slave_pio_init(void){
     pio_sm_set_enabled(i2s_pio, i2s_sm, true);
 }
 
-void i2s_dma_setup(int dma_chan, PIO pio, uint sm){
+static void i2s_dma_setup(int dma_chan, PIO pio, uint sm){
     dma_channel_config conf = dma_channel_get_default_config(dma_chan);
     
     channel_config_set_read_increment(&conf, true);
