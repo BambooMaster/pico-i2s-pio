@@ -57,9 +57,21 @@ typedef enum {
  */
 void i2s_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin);
 
+/**
+ * @brief I2S出力ピンの設定
+ * 
+ * @param data_pin データ出力ピン
+ * @param clock_pin_base LRCLK/WCKピン (BCLKはclock_pin_base+1)
+ * @param mclk_pin MCLKピン
+ * @note BCLK = clock_pin_base + 1
+ * @note MODE_EXDFの場合: DOUTL=data_pin, DOUTR=data_pin+1, WCK=clock_pin_base, BCK=clock_pin_base+1, MCLK=clock_pin_base+2
+ * @deprecated 代わりに i2s_set_pin() を使用してください。
+ * @note 旧バージョンとの後方互換性を維持するためのラッパー関数です。
+ */
 static inline void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mclk_pin){
     i2s_set_pin(data_pin, clock_pin_base,  mclk_pin);
 }
+
 /**
  * @brief I2Sドライバの設定
  * 
@@ -71,6 +83,17 @@ static inline void i2s_mclk_set_pin(uint data_pin, uint clock_pin_base, uint mcl
  */
 void i2s_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode);
 
+/**
+ * @brief I2Sドライバの設定
+ * 
+ * @param pio 使用するPIOインスタンス (pio0 または pio1)
+ * @param clock_mode クロック生成モード (DEFAULT, LOW_JITTER, EXTERNAL)
+ * @param mode 出力フォーマット (I2S, PT8211, EXDF, DUAL等)
+ * @note Lowジッタモードを使用する場合は、UART/I2C/SPI設定よりも先に呼び出す必要があります。
+ * @note MODE_PT8211はBCLK=32fs (LSB Justified 16bit), MCLKなしとなります。
+ * @deprecated 代わりに i2s_set_config() を使用してください。
+ * @note 旧バージョンとの後方互換性を維持するためのラッパー関数です。
+ */
 static inline void i2s_mclk_set_config(PIO pio, CLOCK_MODE clock_mode, I2S_MODE mode){
     i2s_set_config(pio, clock_mode, mode);
 }
@@ -90,10 +113,16 @@ I2S_MODE i2s_get_i2s_mode(void);
  */
 void i2s_init(uint32_t sample_rate_hz);
 
+/**
+ * @brief I2Sドライバの初期化と開始
+ * 
+ * @param sample_rate_hz サンプリングレート (Hz)
+ * @deprecated 代わりに i2s_init() を使用してください。
+ * @note 旧バージョンとの後方互換性を維持するためのラッパー関数です。
+ */
 static inline void i2s_mclk_init(uint32_t sample_rate_hz){
     i2s_init(sample_rate_hz);
 }
-
 
 /**
  * @brief サンプリングレートの変更
@@ -102,6 +131,13 @@ static inline void i2s_mclk_init(uint32_t sample_rate_hz){
  */
 void i2s_change_clock(uint32_t sample_rate_hz);
 
+/**
+ * @brief サンプリングレートの変更
+ * 
+ * @param sample_rate_hz 新しいサンプリングレート (Hz)
+ * @deprecated 代わりに i2s_change_clock() を使用してください。
+ * @note 旧バージョンとの後方互換性を維持するためのラッパー関数です。
+ */
 static inline void i2s_mclk_change_clock(uint32_t sample_rate_hz){
     i2s_change_clock(sample_rate_hz);
 }
@@ -113,6 +149,13 @@ static inline void i2s_mclk_change_clock(uint32_t sample_rate_hz){
  */
 uint32_t i2s_get_sample_rate_hz(void);
 
+/**
+ * @brief 現在のi2sサンプリングレート取得
+ * 
+ * @return i2sサンプリングレート
+ * @deprecated 代わりに i2s_get_sample_rate_hz() を使用してください。
+ * @note 旧バージョンとの後方互換性を維持するためのラッパー関数です。
+ */
 static inline uint32_t i2s_get_freq(void){
     return i2s_get_sample_rate_hz();
 }
