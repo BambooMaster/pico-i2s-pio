@@ -23,12 +23,13 @@
  *
  */
 
+#include <stdatomic.h>
 #include "i2s_uac.h"
 #include "pico/stdlib.h"
 
 #include "i2s_core.h"
 
-static int32_t mul_l, mul_r;
+static atomic_int i2s_mul_l, i2s_mul_r;
 
 // -100dB ~ 0dB (1dB step)
 static const int32_t db_to_vol[101] = {
@@ -88,6 +89,8 @@ void i2s_volume_change(int16_t v, int8_t ch){
     if (v > 100) v = 100;
     else if (v < 0) v = 0;
 
+    int mul_l, mul_r;
+
     if (ch == 0){
         mul_l = db_to_vol[v];
         mul_r = db_to_vol[v];
@@ -98,9 +101,16 @@ void i2s_volume_change(int16_t v, int8_t ch){
     else if (ch == 2){
         mul_r = db_to_vol[v];
     }
+
+    atomic_store(&i2s_mul_l, mul_l);
+    atomic_store(&i2s_mul_r, mul_r);
 }
 
 void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length){
+    int mul_l, mul_r;
+    mul_l = atomic_load(&i2s_mul_l);
+    mul_r = atomic_load(&i2s_mul_r);
+
     for (int i = 0; i < length; i++){
         buf_l[i] = (int32_t)(((int64_t)buf_l[i] * mul_l) >> 29u);
         buf_r[i] = (int32_t)(((int64_t)buf_r[i] * mul_r) >> 29u);
