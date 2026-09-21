@@ -29,6 +29,7 @@
 
 #include "i2s_core.h"
 
+static _Atomic int16_t i2s_vol_l, i2s_vol_r;
 static atomic_int i2s_mul_l, i2s_mul_r;
 
 // -100dB ~ 0dB (1dB step)
@@ -85,25 +86,34 @@ int i2s_unpack_uacdata(uint8_t* in, int sample, uint8_t resolution, int32_t *buf
 }
 
 void i2s_volume_change(int16_t v, int8_t ch){
-    v = -v >> 8;
-    if (v > 100) v = 100;
-    else if (v < 0) v = 0;
+    int16_t vol_index;
+    vol_index = -v >> 8;
+    if (vol_index > 100) vol_index = 100;
+    else if (vol_index < 0) vol_index = 0;
 
     int mul_l, mul_r;
 
     if (ch == 0){
-        mul_l = db_to_vol[v];
-        mul_r = db_to_vol[v];
+        atomic_store(&i2s_vol_l, v);
+        atomic_store(&i2s_vol_r, v);
+
+        mul_l = db_to_vol[vol_index];
+        mul_r = db_to_vol[vol_index];
+        atomic_store(&i2s_mul_l, mul_l);
+        atomic_store(&i2s_mul_r, mul_r);
     }
     else if (ch == 1){
-        mul_l = db_to_vol[v];
+        atomic_store(&i2s_vol_l, v);
+
+        mul_l = db_to_vol[vol_index];
+        atomic_store(&i2s_mul_l, mul_l);
     }
     else if (ch == 2){
-        mul_r = db_to_vol[v];
-    }
+        atomic_store(&i2s_vol_r, v);
 
-    atomic_store(&i2s_mul_l, mul_l);
-    atomic_store(&i2s_mul_r, mul_r);
+        mul_r = db_to_vol[vol_index];
+        atomic_store(&i2s_mul_r, mul_r);
+    }
 }
 
 void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length){
@@ -115,4 +125,12 @@ void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length){
         buf_l[i] = (int32_t)(((int64_t)buf_l[i] * mul_l) >> 29u);
         buf_r[i] = (int32_t)(((int64_t)buf_r[i] * mul_r) >> 29u);
     }
+}
+
+int16_t i2s_get_volume_l(void){
+    return atomic_load(&i2s_vol_l);
+}
+
+int16_t i2s_get_volume_r(void){
+    return atomic_load(&i2s_vol_r);
 }

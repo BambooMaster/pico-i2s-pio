@@ -56,4 +56,18 @@ void i2s_volume_change(int16_t v, int8_t ch);
  */
 void i2s_volume(int32_t *buf_l, int32_t *buf_r, int length);
 
+/**
+ * @brief Lチャンネルの音量取得
+ * 
+ * @return 音量値 (単位: 1/256 dB)
+ */
+int16_t i2s_get_volume_l(void);
+
+/**
+ * @brief Rチャンネルの音量取得
+ * 
+ * @return 音量値 (単位: 1/256 dB)
+ */
+int16_t i2s_get_volume_r(void);
+
 #endif
